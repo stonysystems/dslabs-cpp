@@ -1,0 +1,14 @@
+namespace janus;
+
+abstract service Raft {
+  defer RequestVote(uint64_t arg1,
+                    uint64_t arg2 |
+                    uint64_t ret1,
+                    bool_t vote_granted);
+
+  defer AppendEntries(MarshallDeputy cmd |
+                      bool_t followerAppendOK);
+  defer HelloRpc(string req | string res);                       
+
+}
+

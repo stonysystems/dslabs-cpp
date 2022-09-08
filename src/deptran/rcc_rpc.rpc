@@ -1,0 +1,187 @@
+namespace janus;
+
+abstract service MultiPaxos {
+
+  defer Forward(MarshallDeputy cmd,
+                uint64_t dep_id |
+                uint64_t coro_id);
+
+  defer Prepare(uint64_t slot,
+                ballot_t ballot |
+                ballot_t max_ballot,
+                uint64_t coro_id);
+
+  defer Accept(uint64_t slot,
+               uint64_t time,
+               ballot_t ballot,
+               MarshallDeputy cmd |
+               ballot_t max_ballot,
+               uint64_t coro_id);
+
+  defer Decide(uint64_t slot,
+               ballot_t ballot,
+               MarshallDeputy cmd);
+	       
+}
+
+abstract service Copilot {
+  defer Forward(MarshallDeputy cmd);
+
+  defer Prepare(uint8_t is_pilot,
+                uint64_t slot,
+                ballot_t ballot,
+                DepId dep_id |
+                MarshallDeputy ret_cmd,
+                ballot_t max_ballot,
+                uint64_t dep,
+                status_t status);
+
+  defer FastAccept(uint8_t is_pilot,
+                   uint64_t slot,
+                   ballot_t ballot,
+                   uint64_t dep,
+                   MarshallDeputy cmd,
+                   DepId dep_id |
+                   ballot_t max_ballot,
+                   uint64_t ret_dep);
+
+  defer Accept(uint8_t is_pilot,
+               uint64_t slot,
+               ballot_t ballot,
+               uint64_t dep,
+               MarshallDeputy cmd,
+               DepId dep_id |
+               ballot_t max_ballot);
+
+  defer Commit(uint8_t is_pilot,
+               uint64_t slot,
+               uint64_t dep,
+               MarshallDeputy cmd);
+}
+
+// below is for 2PL and OCC
+abstract service Classic {
+  defer MsgString(string arg | string ret);
+
+  defer MsgMarshall(MarshallDeputy arg | MarshallDeputy ret);
+
+//  defer Dispatch(vector<SimpleCommand> cmd |
+//                 i32 res,
+//                 TxnOutput output);
+
+	defer ReElect(| bool_t success);
+  defer Dispatch(i64 tid, DepId dep_id, MarshallDeputy cmd |
+                 i32 res, TxnOutput output, uint64_t coro_id);
+
+  defer Prepare(i64 tid, 
+                vector<i32> sids,
+                DepId dep_id | 
+                i32 res,
+								bool_t slow,
+                uint64_t coro_id);
+
+  defer Commit(i64 tid, DepId dep_id | i32 res, bool_t slow, uint64_t coro_id, Profiling profile);
+
+  defer Abort(i64 tid, DepId dep_id | i32 res, bool_t slow, uint64_t coro_id, Profiling profile);
+
+  defer EarlyAbort(i64 tid | i32 res);
+
+  defer UpgradeEpoch(uint32_t curr_epoch |
+                     int32_t res);
+
+  defer TruncateEpoch(uint32_t old_epoch);
+  
+  defer IsLeader(locid_t cur_pause| bool_t is_leader );
+  defer IsFPGALeader(locid_t cur_pause| bool_t is_leader );
+  defer SimpleCmd( SimpleCommand cmd| i32 res);
+  defer FailOverTrig(bool_t pause| i32 res);
+   
+  // input: contains many pieces, each piece consist of
+  // | <i32 p_type> <i64 pid> <i32 input_size> <i32 max_output_size> 
+  // <input_0> <input_1> ... |
+  // output: contains many pieces, each piece consist of
+  // | <i32 res> <i32 output_size> <output_0> <output_1> ... |
+  // below is for what?
+
+  defer rpc_null( | );
+  //  defer Prepare();
+}
+
+// Below is for statistics
+
+struct ValueTimesPair {
+    i64 value;
+    i64 times;
+}
+
+struct DepId {
+	string str;
+	i64 id;
+}
+
+struct TxnInfoRes {
+    i32 start_txn;  // total number of started txns
+    i32 total_txn;  // total number of finished txns
+    i32 total_try;  // total number of tries finished
+    i32 commit_txn; // number of commit transactions
+    i32 num_exhausted; // number of txns that reached the retry limit
+    vector<double> this_latency; // latencies started && finish in this period
+    vector<double> last_latency; // latencies started in last period, finish in this period
+    vector<double> attempt_latency; // interval latencies for each attempts
+    vector<double> interval_latency; // latencies finish in this period
+    vector<double> all_interval_latency; // latencies finish in this period include txn's with exhausted retries
+    vector<i32> num_try;
+}
+
+struct ServerResponse {
+    map<string, ValueTimesPair> statistics;
+    double cpu_util;
+    i64 r_cnt_sum;
+    i64 r_cnt_num;
+    i64 r_sz_sum;
+    i64 r_sz_num;
+}
+
+struct ClientResponse  {
+    map<i32, TxnInfoRes> txn_info; // statistics for each txn
+    i64 run_sec;    // running time in seconds
+    i64 run_nsec;   // running time in nano seconds
+    i64 period_sec;    // running time in seconds
+    i64 period_nsec;   // running time in nano seconds
+    i32 is_finish;  // if client finishs
+    i64 n_asking;   // asking finish request count
+}
+
+struct Profiling {
+    double cpu_util;
+    double tx_util;
+    double rx_util;
+		double mem_util;
+}
+
+abstract service ServerControl {
+    defer server_shutdown ( | );
+    defer server_ready ( | i32 res);
+    defer server_heart_beat_with_data ( | ServerResponse res);
+    defer server_heart_beat ( | );
+}
+
+struct TxDispatchRequest {
+    i32 id;
+    i32 tx_type;
+    vector<Value> input;
+}
+
+struct TxnDispatchResponse {
+}
+
+abstract service ClientControl {
+    defer client_get_txn_names( | map<i32, string> txn_names);
+    defer client_shutdown ( | );
+    defer client_force_stop ( | );
+    defer client_response ( DepId dep_id | ClientResponse res);
+    defer client_ready ( | i32 res);
+    defer client_ready_block ( | i32 res);
+    defer client_start ( | );
+    defer DispatchTxn(TxDispatchRequest req | TxReply result);
+}

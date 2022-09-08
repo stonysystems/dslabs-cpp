@@ -1,0 +1,101 @@
+
+namespace janus;
+
+abstract service Rococo {
+  defer RccDispatch(vector<SimpleCommand> cmd |
+                    i32 res,
+                    TxnOutput output,
+                    MarshallDeputy md_graph);
+
+  defer RccFinish(cmdid_t id,
+                  MarshallDeputy md_graph |
+                  map<uint32_t, map<int32_t, Value>> outputs);
+
+  // defer RccInquire(epoch_t epoch,
+  //                  txnid_t txn_id |
+  //                  MarshallDeputy md_res_graph);
+
+  defer RccInquire(txnid_t txn_id, int32_t rank |
+                   map<uint64_t, parent_set_t>);
+
+  defer RccDispatchRo(SimpleCommand cmd |
+                      map<i32, Value> output);
+
+  defer RccInquireValidation(txid_t tx_id, int32_t rank | int32_t res);
+
+  defer RccNotifyGlobalValidation(txid_t tx_id, int32_t rank, int32_t res |);
+
+  defer JanusDispatch(vector<SimpleCommand> cmd |
+                      i32 res,
+                      TxnOutput output,
+                      MarshallDeputy ret_graph);
+
+  defer RccCommit(cmdid_t id,
+                  rank_t rank,
+                  int32_t need_validation,
+                  parent_set_t  parents |
+                  int32_t res,
+                  TxnOutput output);
+
+  defer JanusCommit(cmdid_t id,
+                    rank_t rank,
+                    int32_t need_validation,
+                    MarshallDeputy graph |
+                    int32_t res,
+                    TxnOutput output);
+
+  defer JanusCommitWoGraph(cmdid_t id,
+                           rank_t rank,
+                           int32_t need_validation |
+                           int32_t res,
+                           TxnOutput output);
+
+  defer JanusInquire(epoch_t epoch, 
+                     txnid_t txn_id |
+                     MarshallDeputy ret_graph);
+
+  defer RccPreAccept(cmdid_t txn_id,
+                     rank_t rank,
+                     vector<SimpleCommand> cmd |
+                     i32 res,
+                     parent_set_t x );
+
+
+  defer JanusPreAccept(cmdid_t txn_id,
+                       rank_t rank,
+                       vector<SimpleCommand> cmd,
+                       MarshallDeputy graph |
+                       i32 res,
+                       MarshallDeputy ret_graph);
+
+  defer JanusPreAcceptWoGraph(cmdid_t txn_id,
+                              rank_t rank,
+                              vector<SimpleCommand> cmd |
+                              i32 res,
+                              MarshallDeputy ret_graph);
+
+  defer RccAccept(cmdid_t txn_id,
+                  i32 rank,
+                  ballot_t ballot,
+                  parent_set_t p  |
+                  i32 res);
+
+  defer JanusAccept(cmdid_t txn_id,
+                    i32 rank,
+                    ballot_t ballot,
+                    MarshallDeputy graph |
+                    i32 res);
+
+  defer PreAcceptFebruus(txid_t tx_id |
+                         i32 ret,
+                         uint64_t timestamp);
+
+  defer AcceptFebruus(txid_t tx_id,
+                      ballot_t ballot,
+                      uint64_t timestamp |
+                      i32 ret);
+
+  defer CommitFebruus(txid_t tx_id, uint64_t timestamp | i32 ret);
+
+}
+
