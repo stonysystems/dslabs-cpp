@@ -30,6 +30,7 @@ class Future: public RefCounted {
 
     bool ready_;
     bool timed_out_;
+    uint64_t timeout_{1000000}; // default timeout 1s
     pthread_cond_t ready_cond_;
     pthread_mutex_t ready_m_;
 
@@ -69,7 +70,13 @@ public:
     }
 
     i32 get_error_code() {
-        wait();
+        if (timeout_ > 0) {
+            double x = timeout_;
+            x = x / 1000000;
+            timed_wait(x);
+        } else {
+            wait();
+        }
         return error_code_;
     }
 
@@ -151,7 +158,8 @@ public:
 
 public:
 	 bool client_;
-	 long time_;
+	//  long time_;
+    uint64_t timeout_{0}; 
 	 int count;
 	 i32 rpc_id_;
 

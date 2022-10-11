@@ -496,6 +496,7 @@ Future* Client::begin_request(i32 rpc_id, const FutureAttr& attr /* =... */) {
   }
 
   Future* fu = new Future(xid_counter_.next(), attr);
+  fu->timeout_ = timeout_;
   pending_fu_l_.lock();
   pending_fu_[fu->xid_] = fu;
   pending_fu_l_.unlock();

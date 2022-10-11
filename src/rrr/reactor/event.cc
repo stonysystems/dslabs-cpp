@@ -123,12 +123,13 @@ bool Event::Test() {
       Log_info("event status ready, triggered?");
     } else if (status_ == DONE) {
       // do nothing
+    } else if (status_ == TIMEOUT) {
+      // do nothing
     } else {
       verify(0);
     }
     return true;
-  }
-  else{
+  } else {
     if(status_ == DONE){
       status_ = INIT;
     }

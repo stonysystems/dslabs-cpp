@@ -133,6 +133,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDB_CHECKSUM")
 #pkg_check_modules(PROFILER REQUIRED libprofiler)
 
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDEBUG_CODE")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DRAFT_TEST_CORO")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDEBUG_CHECK")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DEVENT_TIMEOUT_CHECK")
 set(CMAKE_CXX_FLAGS_RELEASE  "${CMAKE_CXX_FLAGS_RELEASE} -DLOG_LEVEL_AS_INFO")
@@ -213,6 +214,8 @@ file(GLOB BENCH_SRC
 )
 
 file(GLOB DEPTRAN_SRC
+    "src/kv/*.h"
+    "src/kv/*.cc"
     "src/deptran/*.h"
     "src/deptran/*.cc"
     "src/deptran/*/*.cc"

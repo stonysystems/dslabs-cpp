@@ -19,6 +19,7 @@ namespace janus {
 
 class Communicator;
 class Frame;
+class KvServer;
 class ServerWorker {
  public:
   rrr::PollMgr *svr_poll_mgr_ = nullptr;
@@ -38,6 +39,9 @@ class ServerWorker {
   Sharding *sharding_ = nullptr;
   TxLogServer *tx_sched_ = nullptr;
   TxLogServer *rep_sched_ = nullptr;
+  shared_ptr<TxLogServer> rep_log_svr_{};
+  shared_ptr<KvServer> kv_svr_{}; 
+
   shared_ptr<TxnRegistry> tx_reg_{nullptr};
 
   Communicator *tx_commo_ = nullptr;

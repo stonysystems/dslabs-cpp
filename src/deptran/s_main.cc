@@ -97,6 +97,7 @@ void server_launch_worker(vector<Config::SiteInfo>& server_sites) {
       worker.SetupCommo();
       Log_info("site %d launched!", (int)site_info.id);
       worker.launched_ = true;
+
     }));
   }
 

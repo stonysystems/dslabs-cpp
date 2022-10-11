@@ -292,6 +292,7 @@ void Config::Load() {
 void Config::LoadYML(std::string &filename) {
   Log_info("%s: %s", __FUNCTION__, filename.c_str());
   YAML::Node config = YAML::LoadFile(filename);
+  yaml_config_ = merge_nodes(config, yaml_config_);
 
   if (config["process"]) {
     BuildSiteProcMap(config["process"]);

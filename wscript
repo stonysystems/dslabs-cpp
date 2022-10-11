@@ -58,6 +58,8 @@ def options(opt):
                    default=False, action='store_true')
     opt.add_option('', '--enable-raft-test', dest='enable_raft_test',
                    default=False, action='store_true')
+    opt.add_option('', '--enable-kv-test', dest='enable_kv_test',
+                   default=False, action='store_true')
     opt.parse_args();
 
 def configure(conf):
@@ -85,6 +87,7 @@ def configure(conf):
     _enable_db_checksum(conf)
     _enable_leaksan(conf)
     _enable_raft_test(conf)
+    _enable_kv_test(conf)
 
     conf.env.append_value("CXXFLAGS", "-Wno-reorder")
     conf.env.append_value("CXXFLAGS", "-Wno-comment")
@@ -169,6 +172,7 @@ def build(bld):
             "src/deptran/occ/*.cc "
             "src/deptran/classic/*.cc "
             "src/deptran/extern_c/*.cc "
+            "src/kv/*.cc "
             "src/bench/*/*.cc ")
 
     for protocol in Options.options.protocol.split(','):
@@ -332,8 +336,13 @@ def _enable_debug(conf):
 
 def _enable_raft_test(conf):
     if Options.options.enable_raft_test:
-        Logs.pprint("PINK", "Raft lab testing coroutine enabled")
+        Logs.pprint("PINK", "Raft lab testing enabled")
         conf.env.append_value("CXXFLAGS", "-DRAFT_TEST_CORO")
+
+def _enable_kv_test(conf):
+    if Options.options.enable_kv_test:
+        Logs.pprint("PINK", "Kv lab testing enabled")
+        conf.env.append_value("CXXFLAGS", "-DRAFT_TEST_CORO -DKV_LAB_TEST".split())
 
 def _properly_split(args):
     if args == None:
@@ -343,6 +352,11 @@ def _properly_split(args):
 
 def _gen_srpc_headers():
     for srpc in glob.glob("src/deptran/*/*.rpc"):
+        target = os.path.splitext(srpc)[0]+'.h'
+        _depend(target,
+                srpc,
+                "bin/rpcgen --cpp " + srpc)
+    for srpc in glob.glob("src/kv/*.rpc"):
         target = os.path.splitext(srpc)[0]+'.h'
         _depend(target,
                 srpc,

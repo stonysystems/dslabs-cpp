@@ -25,5 +25,5 @@ host:
   localhost: 127.0.0.1
 
 lab:
-  raft: true
-  kv: false
+  raft: false
+  kv: true  

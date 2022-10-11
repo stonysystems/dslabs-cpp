@@ -20,9 +20,11 @@ class TxnRegistry;
 class Communicator;
 class Workload;
 
+class KvServer;
 class Frame {
  public:
   Communicator *commo_ = nullptr;
+  KvServer* kv_svr_ = nullptr;
 
   // static variables to hold frames
   static map<string, int> &FrameNameToMode();

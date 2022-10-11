@@ -1,4 +1,6 @@
 #include "test.h"
+#include "../../kv/server.h"
+#include "../../kv/client.h"
 
 namespace janus {
 
@@ -7,7 +9,90 @@ namespace janus {
 // #define TEST_EXPAND(x) x || x || x || x || x 
 #define TEST_EXPAND(x) x 
 
-int RaftLabTest::Run(void) {
+int RaftLabTest::GenericKvTest(int n_cli, bool unreliable, uint64_t timeout, int leader) {
+  vector<thread*> threads;
+  threads.resize(n_cli, nullptr);
+  atomic<int> done{0};
+  if (unreliable) {
+    config_->SetUnreliable(true);
+  }
+  for (int i = 0; i < n_cli; i++) {
+    threads[i] = new thread([this, i, &done, unreliable, leader](){
+      verify(kv_svr_ != nullptr); // TODO initialize kv_svr_
+      auto cli = kv_svr_->CreateClient();
+      cli->leader_idx_ = leader;
+      int r = RandomGenerator::rand(0, 10000);
+      string k = to_string(i);
+      string v1 = to_string(r);
+      do {
+        auto ret = cli->Put(k, v1);
+        if (ret == KV_TIMEOUT) {
+          verify(unreliable);
+          continue;
+        } 
+        string v2 = to_string(RandomGenerator::rand(0, 10000));
+        ret = cli->Append(k, v2);
+        if (ret == KV_TIMEOUT) {
+          verify(unreliable);
+          continue;
+        } 
+        string v3; 
+        ret = cli->Get(k, &v3);
+        if (ret == KV_TIMEOUT) {
+          verify(unreliable);
+          continue;
+        }
+        verify(v1+v2 == v3);
+        break;
+      } while (true);
+      done.fetch_add(1);  
+      // int ret = cli->Append("test", "hello world");
+      // verify(ret == KV_SUCCESS); 
+      // string v;
+      // ret = cli->Get("test", &v);
+      // verify(ret == KV_SUCCESS); 
+      // verify(v == "hello world"); 
+    });
+  }
+  auto t1 = Time::now();
+  while (true) {
+    std::this_thread::sleep_for(100ms);
+    if (done.load() == n_cli) {
+      break;
+    }  
+    if (Time::now() - t1 > timeout) {
+      Log_fatal("run out of time to finish");
+    }
+  }
+  if (unreliable) {
+    config_->SetUnreliable(false);
+  }
+  verify(done.load() == n_cli);
+  return 0;
+}
+
+int RaftLabTest::RunKv(void) {
+  Coroutine::Sleep(5000000);
+  int leader = config_->OneLeader();
+  if (false
+      || TEST_EXPAND(testKvBasic())
+      || TEST_EXPAND(testKvConcurrent())
+      || TEST_EXPAND(testKvMajority())
+      || TEST_EXPAND(testKvMinority())
+      || TEST_EXPAND(testKvReElection())
+      || TEST_EXPAND(testKvMajorityConcurrent())
+      || TEST_EXPAND(testKvMajorityConcurrentSameKey())
+      || TEST_EXPAND(testKvMajorityConcurrentLinear())
+      || TEST_EXPAND(testKvUnreliable())
+    ) {
+    Print("TESTS FAILED");
+    return 1;
+  }
+  Print("ALL TESTS PASSED");
+  return 0;
+}
+
+int RaftLabTest::RunRaft(void) {
   config_->SetLearnerAction();
   uint64_t start_rpc = config_->RpcTotal();
   if (testInitialElection()
@@ -27,6 +112,23 @@ int RaftLabTest::Run(void) {
   }
   Print("ALL TESTS PASSED");
   Print("Total RPC count: %ld", config_->RpcTotal() - start_rpc);
+  return 0;
+
+}
+
+int RaftLabTest::Run(void) {
+  auto config_node = Config::GetConfig()->yaml_config_["lab"];
+  if (config_node) {
+    if (config_node["kv"].as<bool>()) {
+      return RunKv();
+    }
+    if (config_node["raft"].as<bool>()) {
+      return RunRaft();
+    }
+  } else {
+    verify(0);
+  }
+  verify(0);
   return 0;
 }
 
@@ -79,6 +181,190 @@ void RaftLabTest::Cleanup(void) {
         Assert2(r > 0, "failed to reach agreement for command %d among %d servers", cmd, n); \
         index_ = r + 1; \
       }
+
+int RaftLabTest::testKvBasic() {
+  Init2(1, "Basic kv operations");
+  GenericKvTest(1, false);
+  Passed2();
+}
+
+int RaftLabTest::testKvConcurrent() {
+  Init2(2, "Concurrent kv operations");
+  GenericKvTest(5, false);
+  Passed2();
+}
+
+int RaftLabTest::testKvMajority() {
+  Init2(3, "Progress with a majority");
+  auto leader = config_->OneLeader();
+  config_->Disconnect((leader+1)%5);
+  config_->Disconnect((leader+2)%5);
+  GenericKvTest(1, false);
+  config_->Reconnect((leader+1)%5);
+  config_->Reconnect((leader+2)%5);
+  Passed2();
+}
+
+int RaftLabTest::testKvMajorityConcurrent() {
+  Init2(6, "Progress with a majority and concurrent requests");
+  auto leader = config_->OneLeader();
+  config_->Disconnect((leader+1)%5);
+  config_->Disconnect((leader+2)%5);
+  GenericKvTest(5, false, 3000000, leader);
+  config_->Reconnect((leader+1)%5);
+  config_->Reconnect((leader+2)%5);
+  Passed2();
+}
+
+int RaftLabTest::testKvMajorityConcurrentSameKey() {
+  Init2(7, "Progress with a majority writing the same key");
+  auto leader = config_->OneLeader();
+  config_->Disconnect((leader+1)%5);
+  config_->Disconnect((leader+2)%5);
+  vector<thread*> threads;
+  int n_cli = 5;
+  threads.resize(n_cli, nullptr);
+  atomic<int> done{0};
+  string k = "test_key_7";
+  for (int i = 0; i < n_cli; i++) {
+    threads[i] = new thread([this, i, &done, leader, k](){
+      verify(kv_svr_ != nullptr);
+      auto cli = kv_svr_->CreateClient();
+      cli->leader_idx_ = leader;
+      verify(cli->Append(k, "1") == KV_SUCCESS);
+      done.fetch_add(1);  
+    });
+  }
+  auto t1 = Time::now();
+  while (true) {
+    std::this_thread::sleep_for(100ms);
+    if (done.load() == n_cli) {
+      break;
+    }  
+    if (Time::now() - t1 > 10000000) {
+      Log_fatal("run out of time to finish");
+    }
+  }
+  verify(done.load() == n_cli);
+  auto cli = kv_svr_->CreateClient();
+  cli->leader_idx_ = leader;
+  string s3;
+  verify(cli->Get(k, &s3) == KV_SUCCESS);
+  verify(s3=="11111");
+
+  config_->Reconnect((leader+1)%5);
+  config_->Reconnect((leader+2)%5);
+  Passed2();
+}
+
+int RaftLabTest::testKvMajorityConcurrentLinear() {
+  Init2(8, "Progress with a majority testing linearizability");
+  auto leader = config_->OneLeader();
+  config_->Disconnect((leader+1)%5);
+  config_->Disconnect((leader+2)%5);
+  vector<thread*> threads;
+  int n_cli = 5;
+  threads.resize(n_cli, nullptr);
+  atomic<int> done{0};
+  string k = "test_key_8";
+  for (int i = 0; i < n_cli; i++) {
+    verify(kv_svr_ != nullptr);
+    auto cli = kv_svr_->CreateClient();
+    cli->leader_idx_ = leader;
+    verify(cli->Append(k, to_string(i)) == KV_SUCCESS);
+    done.fetch_add(1);  
+  }
+  auto t1 = Time::now();
+  while (true) {
+    std::this_thread::sleep_for(100ms);
+    if (done.load() == n_cli) {
+      break;
+    }  
+    if (Time::now() - t1 > 10000000) {
+      Log_fatal("run out of time to finish");
+    }
+  }
+  verify(done.load() == n_cli);
+  auto cli = kv_svr_->CreateClient();
+  cli->leader_idx_ = leader;
+  string s3;
+  verify(cli->Get(k, &s3) == KV_SUCCESS);
+  verify(s3=="01234");
+
+  config_->Reconnect((leader+1)%5);
+  config_->Reconnect((leader+2)%5);
+  Passed2();
+}
+
+int RaftLabTest::testKvMinority() {
+  Init2(4, "No progress with a minority");
+  auto leader = config_->OneLeader();
+  config_->Disconnect((leader+1)%5);
+  config_->Disconnect((leader+2)%5);
+  config_->Disconnect((leader+3)%5);
+  auto cli = kv_svr_->CreateClient();
+  int r = RandomGenerator::rand(0, 10000);
+  string k = to_string(1);
+  string v1 = to_string(r);
+  auto ret = cli->Put(k, v1);
+  verify (ret == KV_TIMEOUT);
+  string v3;
+  ret = cli->Get(k, &v3);
+  verify (ret == KV_TIMEOUT);
+  config_->Reconnect((leader+1)%5);
+  config_->Reconnect((leader+2)%5);
+  config_->Reconnect((leader+3)%5);
+  Passed2();
+}
+
+int RaftLabTest::testKvReElection() {
+  Init2(5, "Kv operations through re-election");
+  // find current leader
+  int leader = config_->OneLeader();
+  AssertOneLeader(leader);
+
+  auto cli = kv_svr_->CreateClient();
+  int r = RandomGenerator::rand(0, 10000);
+  string k = "reelection";
+  string v1 = to_string(r);
+  cli->leader_idx_ = leader;
+  verify(cli->Put(k, v1) == KV_SUCCESS);
+  // disconnect leader - make sure a new one is elected
+  Log_debug("disconnecting old leader");
+  config_->Disconnect(leader);
+  int oldLeader = leader;
+  Coroutine::Sleep(ELECTIONTIMEOUT);
+  leader = config_->OneLeader();
+  AssertOneLeader(leader);
+  AssertReElection(leader, oldLeader);
+  // try write to the new leader
+  cli->leader_idx_ = leader;
+  string v2 = to_string(RandomGenerator::rand(0, 10000));
+  auto ret = cli->Append(k, v2);
+  // Log_info("ret %d", ret);
+  verify(ret == KV_SUCCESS);
+  string v3; 
+  verify(cli->Get(k, &v3) == KV_SUCCESS);
+  verify(v1+v2 == v3);
+  // reconnect old leader - should not disturb new leader
+  config_->Reconnect(oldLeader);
+  Log_debug("reconnecting old leader");
+  Coroutine::Sleep(ELECTIONTIMEOUT);
+  AssertOneLeader(config_->OneLeader(leader));
+  // try write another value
+  string v4 = to_string(RandomGenerator::rand(0, 10000));
+  verify(cli->Append(k, v4)==KV_SUCCESS);
+  string v5; 
+  verify(cli->Get(k, &v5)==KV_SUCCESS);
+  verify(v1+v2+v4 == v5);
+  Passed2();
+}
+
+int RaftLabTest::testKvUnreliable(void) {
+  Init2(9, "Progress in unreliable net");
+  GenericKvTest(1, true, 300*1000000ull);
+  Passed2();
+}
 
 int RaftLabTest::testInitialElection(void) {
   Init2(1, "Initial election");

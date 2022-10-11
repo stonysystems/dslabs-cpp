@@ -8,6 +8,7 @@
 #include "commo.h"
 #include "config.h"
 #include "test.h"
+#include "../kv/server.h"
 
 namespace janus {
 
@@ -122,6 +123,7 @@ Communicator *RaftFrame::CreateCommo(PollMgr *poll) {
       break;
     }
   }
+  kv_svr_->commo_ = commo_;
   raft_test_mutex_.unlock();
 
   if (site_info_->locale_id == 0) {
@@ -134,6 +136,8 @@ Communicator *RaftFrame::CreateCommo(PollMgr *poll) {
       verify(n_replicas_ == 5);
       auto testconfig = new RaftTestConfig(replicas_);
       RaftLabTest test(testconfig);
+      test.kv_svr_ = this->kv_svr_;
+      verify(test.kv_svr_);
       test.Run();
       test.Cleanup();
       // Turn off Reactor loop

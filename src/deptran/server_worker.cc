@@ -5,6 +5,8 @@
 #include "scheduler.h"
 #include "frame.h"
 #include "communicator.h"
+#include "../kv/server.h"
+#include "../kv/service.h"
 
 namespace janus {
 
@@ -64,6 +66,7 @@ void ServerWorker::SetupBase() {
     rep_sched_->tx_sched_ = tx_sched_;
     tx_sched_->rep_frame_ = rep_frame_;
     tx_sched_->rep_sched_ = rep_sched_;
+    rep_log_svr_.reset(rep_sched_); 
   }
   // add callbacks to execute commands to rep_sched_
   if (rep_sched_ && tx_sched_) {
@@ -71,6 +74,13 @@ void ServerWorker::SetupBase() {
                                            tx_sched_,
                                            std::placeholders::_1));
   }
+  auto kv_svr = make_shared<KvServer>();
+  kv_svr_ = kv_svr;
+  kv_svr_->sp_log_svr_ = rep_log_svr_; 
+  verify(kv_svr_->sp_log_svr_);
+  rep_log_svr_->app_next_ = [kv_svr](Marshallable& m){
+    kv_svr->OnNextCommand(m);
+  };
 }
 
 void ServerWorker::PopTable() {
@@ -156,6 +166,10 @@ void ServerWorker::SetupService() {
     services_.insert(services_.end(), s2.begin(), s2.end());
   }
 
+  auto s = new KvServiceImpl();
+  s->sp_svr_ = kv_svr_;
+  services_.push_back(s);
+
 //  auto& alarm = TimeoutALock::get_alarm_s();
 //  ServerWorker::svr_poll_mgr_->add(&alarm);
 
@@ -220,6 +234,7 @@ void ServerWorker::SetupCommo() {
     tx_sched_->commo_ = tx_commo_;
   }
   if (rep_frame_) {
+    rep_frame_->kv_svr_ = kv_svr_.get();
     rep_commo_ = rep_frame_->CreateCommo(svr_poll_mgr_);
     if (rep_commo_) {
       rep_commo_->loc_id_ = site_info_->locale_id;
