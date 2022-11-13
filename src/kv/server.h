@@ -47,7 +47,6 @@ class KvServer {
   shared_ptr<TxLogServer> sp_log_svr_; 
   int64_t op_id_cnt_ = 0;
   uint32_t cli_cnt_ = 0;
-  Communicator* commo_{nullptr};
 
   /* add your variables here */
 

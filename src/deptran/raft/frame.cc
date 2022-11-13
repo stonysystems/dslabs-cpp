@@ -123,7 +123,6 @@ Communicator *RaftFrame::CreateCommo(PollMgr *poll) {
       break;
     }
   }
-  kv_svr_->commo_ = commo_;
   raft_test_mutex_.unlock();
 
   if (site_info_->locale_id == 0) {
@@ -137,7 +136,8 @@ Communicator *RaftFrame::CreateCommo(PollMgr *poll) {
       auto testconfig = new RaftTestConfig(replicas_);
       RaftLabTest test(testconfig);
       test.kv_svr_ = this->kv_svr_;
-      verify(test.kv_svr_);
+      test.sm_svr_ = this->sm_svr_;
+      verify(test.kv_svr_!= nullptr || test.sm_svr_ != nullptr);
       test.Run();
       test.Cleanup();
       // Turn off Reactor loop

@@ -74,6 +74,8 @@
     "stop_token": "cpp",
     "valarray": "cpp",
     "variant": "cpp",
-    "filesystem": "cpp"
-  }
+    "filesystem": "cpp",
+    "any": "cpp"
+  },
+  "cmake.generator": "Unix Makefiles"
 }

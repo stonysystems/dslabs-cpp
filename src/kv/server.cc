@@ -57,8 +57,8 @@ void KvServer::OnNextCommand(Marshallable& m) {
 shared_ptr<KvClient> KvServer::CreateClient() {
   /* don't change this function */
   auto cli = make_shared<KvClient>();
-  verify(commo_ != nullptr);
-  cli->commo_ = commo_;
+  cli->commo_ = sp_log_svr_->commo_;
+  verify(cli->commo_ != nullptr);
   uint32_t id = sp_log_svr_->site_id_;
   id = id << 16;
   cli->cli_id_ = id+cli_cnt_++; 

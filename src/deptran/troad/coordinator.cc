@@ -1,6 +1,6 @@
 
 #include "../__dep__.h"
-#include "deptran/procedure.h"
+#include "procedure.h"
 #include "frame.h"
 #include "commo.h"
 #include "coordinator.h"

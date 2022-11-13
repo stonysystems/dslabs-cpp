@@ -20,11 +20,12 @@ namespace janus {
 class Communicator;
 class Frame;
 class KvServer;
+class ShardMasterServiceImpl;
 class ServerWorker {
  public:
   rrr::PollMgr *svr_poll_mgr_ = nullptr;
   base::ThreadPool *svr_thread_pool_ = nullptr;
-  vector<rrr::Service*> services_ = {};
+  vector<shared_ptr<rrr::Service>> services_ = {};
   rrr::Server *rpc_server_ = nullptr;
   base::ThreadPool *thread_pool_g = nullptr;
 
@@ -41,6 +42,7 @@ class ServerWorker {
   TxLogServer *rep_sched_ = nullptr;
   shared_ptr<TxLogServer> rep_log_svr_{};
   shared_ptr<KvServer> kv_svr_{}; 
+  shared_ptr<ShardMasterServiceImpl> sm_svr_{}; 
 
   shared_ptr<TxnRegistry> tx_reg_{nullptr};
 

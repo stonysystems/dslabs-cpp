@@ -94,7 +94,7 @@ def configure(conf):
     conf.env.append_value("CXXFLAGS", "-Wno-unused-function")
     conf.env.append_value("CXXFLAGS", "-Wno-unused-variable")
     conf.env.append_value("CXXFLAGS", "-Wno-sign-compare")
-    conf.check_boost(lib='system filesystem context thread coroutine')
+    conf.check_boost(lib='system filesystem context thread coroutine serialization')
 
     conf.env.append_value("CXXFLAGS", "-Wno-sign-compare")
     conf.env.append_value('INCLUDES', ['/usr/local/include'])
@@ -173,6 +173,7 @@ def build(bld):
             "src/deptran/classic/*.cc "
             "src/deptran/extern_c/*.cc "
             "src/kv/*.cc "
+            "src/shardmaster/*.cc "
             "src/bench/*/*.cc ")
 
     for protocol in Options.options.protocol.split(','):
@@ -357,6 +358,11 @@ def _gen_srpc_headers():
                 srpc,
                 "bin/rpcgen --cpp " + srpc)
     for srpc in glob.glob("src/kv/*.rpc"):
+        target = os.path.splitext(srpc)[0]+'.h'
+        _depend(target,
+                srpc,
+                "bin/rpcgen --cpp " + srpc)
+    for srpc in glob.glob("src/shardmaster/*.rpc"):
         target = os.path.splitext(srpc)[0]+'.h'
         _depend(target,
                 srpc,

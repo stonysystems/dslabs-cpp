@@ -25,5 +25,6 @@ host:
   localhost: 127.0.0.1
 
 lab:
-  raft: true
+  raft: false
   kv: false
+  shard: true

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <deptran/communicator.h>
 #include <mutex>
+#include "../communicator.h"
 #include "../frame.h"
 #include "../constants.h"
 #include "commo.h"

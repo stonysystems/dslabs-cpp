@@ -1,6 +1,8 @@
 #include "test.h"
 #include "../../kv/server.h"
 #include "../../kv/client.h"
+#include "../../shardmaster/service.h"
+#include "../../shardmaster/client.h"
 
 namespace janus {
 
@@ -71,6 +73,22 @@ int RaftLabTest::GenericKvTest(int n_cli, bool unreliable, uint64_t timeout, int
   return 0;
 }
 
+int RaftLabTest::RunShard(void) {
+  Coroutine::Sleep(5000000);
+  int leader = config_->OneLeader();   
+  if (false 
+      || TEST_EXPAND(testShardBasic()) 
+      || TEST_EXPAND(testShardConcurrent()) 
+      || TEST_EXPAND(testShardMinimalTransferJoin()) 
+      || TEST_EXPAND(testShardMinimalTransferLeave()) 
+  ) {
+    Print("TESTS FAILED");
+    return 1;
+  }
+  Print("ALL TESTS PASSED");
+  return 0;
+}
+
 int RaftLabTest::RunKv(void) {
   Coroutine::Sleep(5000000);
   int leader = config_->OneLeader();
@@ -119,12 +137,15 @@ int RaftLabTest::RunRaft(void) {
 int RaftLabTest::Run(void) {
   auto config_node = Config::GetConfig()->yaml_config_["lab"];
   if (config_node) {
+    if (config_node["shard"].as<bool>()) {
+      return RunShard();
+    } 
     if (config_node["kv"].as<bool>()) {
       return RunKv();
     }
     if (config_node["raft"].as<bool>()) {
       return RunRaft();
-    }
+    } 
   } else {
     verify(0);
   }
@@ -181,6 +202,225 @@ void RaftLabTest::Cleanup(void) {
         Assert2(r > 0, "failed to reach agreement for command %d among %d servers", cmd, n); \
         index_ = r + 1; \
       }
+
+void RaftLabTest::checkShardBasic(const map<uint32_t, vector<uint32_t>>& group_servers) {
+  auto cli = sm_svr_->CreateClient();
+  ShardConfig config;
+  verify(cli->Query(-1, &config) == KV_SUCCESS);
+  if (group_servers.size() > 0) {
+    verify(config.number > 0);
+    if (config.group_servers_map_ != group_servers) {
+      Log_fatal("some groups missing!");
+    }
+  }
+  // look for any un-allocated shards
+  for (auto& pair : config.shard_group_map_) {
+    auto shard = pair.first;
+    auto group = pair.second; 
+    if (group == 0) continue;
+    if (config.group_servers_map_.find(group) == config.group_servers_map_.end()) {
+      Log_fatal("Shard %d is not assigned to a valid group", shard);  
+    }
+  }
+  // check if sharding is balanced
+  uint32_t n_shard = config.shard_group_map_.size();
+  uint32_t n_group = config.group_servers_map_.size();
+  uint32_t max_shard_per_group = (n_shard + n_group - 1) / n_group; 
+  map<uint32_t, uint32_t> count{};
+  for (auto& pair : config.shard_group_map_) {
+    auto group = pair.second;
+    count[group]++;
+  }
+  uint32_t max = 0;
+  uint32_t min = UINT32_MAX;
+  for (auto& pair : count) {
+    auto c = pair.second;
+    if (c < min) {
+      min = c;
+    }
+    if (c > max) {
+      max = c;
+    }
+  } 
+  verify(max <= min+1);
+}
+
+int RaftLabTest::testShardConcurrent() {
+  Init2(2, "Concurrent shard operations");
+  vector<thread*> threads;
+  int n_cli = 5;
+  threads.resize(n_cli, nullptr);
+  atomic<int> done{0};
+  // if (unreliable) {
+  //   config_->SetUnreliable(true);
+  // }
+  bool unreliable = false;
+  int leader = 0;
+  for (int i = 0; i < n_cli; i++) {
+    threads[i] = new thread([this, i, &done, unreliable, leader](){
+      verify(sm_svr_ != nullptr); // TODO initialize kv_svr_
+      auto cli = sm_svr_->CreateClient();
+      cli->leader_idx_ = leader;
+      int r = RandomGenerator::rand(0, 10000);
+      string k = to_string(i);
+      string v1 = to_string(r);
+      do {
+        map<uint32_t, vector<uint32_t>> group_servers = {{1,{5,6,7,8,9}}};
+        auto ret = cli->Join(group_servers);
+        verify(ret == KV_SUCCESS);
+        checkShardBasic();
+        map<uint32_t, vector<uint32_t>> group_servers_2 = {{2,{10,11,12,13,14}}};
+        auto ret2 = cli->Join(group_servers_2);
+        verify(ret2 == KV_SUCCESS);
+
+        map<uint32_t, vector<uint32_t>> group_servers_3 = {{1,{5,6,7,8,9}},{2,{10,11,12,13,14}}};
+        checkShardBasic();
+        checkShardBasic(); // check it twice
+        auto ret3 = cli->Leave({1});
+        checkShardBasic();
+
+        break; 
+      } while (true);
+      done.fetch_add(1);  
+    });
+  }
+  auto t1 = Time::now();
+  while (true) {
+    std::this_thread::sleep_for(100ms);
+    if (done.load() == n_cli) {
+      break;
+    }  
+    if (Time::now() - t1 > 100000000) {
+      Log_fatal("run out of time to finish");
+    }
+  }
+  verify(done.load() == n_cli);
+  Passed2();
+}
+
+int RaftLabTest::testShardMinimalTransferJoin() {
+  Init2(3, "Minimal transfers after joins");
+  map<uint32_t, vector<uint32_t>> group_servers_1 = {{1,{5,6,7,8,9}}};
+  map<uint32_t, vector<uint32_t>> group_servers_3 = {{3,{15,16,17,18,19}}};
+  map<uint32_t, vector<uint32_t>> group_servers_4 = {{4,{20,21,22,23,24}}};
+  map<uint32_t, vector<uint32_t>> group_servers_5 = {{5,{25,26,27,28,29}}};
+  auto cli = sm_svr_->CreateClient();
+  ShardConfig c1, c2;
+  cli->Join(group_servers_1);
+  cli->Query(-1, &c1);
+  cli->Join(group_servers_3);
+  cli->Join(group_servers_4);
+  cli->Join(group_servers_5);
+  cli->Query(-1, &c2);
+  for (auto& pair : c2.shard_group_map_) {
+    auto& shard = pair.first;
+    auto& group = pair.second;
+    if (c1.group_servers_map_.count(group) > 0) {
+      verify(c1.shard_group_map_[shard] == group);
+    } 
+  }
+  Passed2();
+}
+
+int RaftLabTest::testShardMinimalTransferLeave() {
+  Init2(4, "Minimal transfers after leaves");
+  map<uint32_t, vector<uint32_t>> group_servers_1 = {{1,{5,6,7,8,9}}};
+  map<uint32_t, vector<uint32_t>> group_servers_3 = {{3,{15,16,17,18,19}}};
+  map<uint32_t, vector<uint32_t>> group_servers_4 = {{4,{20,21,22,23,24}}};
+  auto cli = sm_svr_->CreateClient();
+  ShardConfig c1, c2;
+  cli->Leave({2});
+  cli->Query(-1, &c1);
+  cli->Leave({3});
+  cli->Leave({4});
+  cli->Leave({5});
+  cli->Query(-1, &c2);
+  for (auto& pair : c1.shard_group_map_) {
+    auto& shard = pair.first;
+    auto& group = pair.second;
+    if (c2.group_servers_map_.count(group) > 0) {
+      verify(c2.shard_group_map_[shard] == group);
+    } 
+  }
+  Passed2();
+}
+
+int RaftLabTest::testShardBasic() {
+  Init2(1, "Basic shard operations");
+  vector<thread*> threads;
+  int n_cli = 1;
+  threads.resize(n_cli, nullptr);
+  atomic<int> done{0};
+  // if (unreliable) {
+  //   config_->SetUnreliable(true);
+  // }
+  bool unreliable = false;
+  int leader = 0;
+  for (int i = 0; i < n_cli; i++) {
+    threads[i] = new thread([this, i, &done, unreliable, leader](){
+      verify(sm_svr_ != nullptr); // TODO initialize kv_svr_
+      auto cli = sm_svr_->CreateClient();
+      cli->leader_idx_ = leader;
+      int r = RandomGenerator::rand(0, 10000);
+      string k = to_string(i);
+      string v1 = to_string(r);
+      do {
+        map<uint32_t, vector<uint32_t>> group_servers = {{1,{5,6,7,8,9}}};
+        auto ret = cli->Join(group_servers);
+        verify(ret == KV_SUCCESS);
+        checkShardBasic(group_servers);
+        map<uint32_t, vector<uint32_t>> group_servers_2 = {{2,{10,11,12,13,14}}};
+        auto ret2 = cli->Join(group_servers_2);
+        verify(ret2 == KV_SUCCESS);
+
+        map<uint32_t, vector<uint32_t>> group_servers_3 = {{1,{5,6,7,8,9}},{2,{10,11,12,13,14}}};
+        checkShardBasic(group_servers_3);
+        checkShardBasic(group_servers_3); // check it twice
+        auto ret3 = cli->Leave({1});
+        checkShardBasic(group_servers_2);
+
+        break; 
+        // if (ret == KV_TIMEOUT) {
+        //   verify(unreliable);
+        //   continue;
+        // } 
+        // string v2 = to_string(RandomGenerator::rand(0, 10000));
+        // ret = cli->Append(k, v2);
+        // if (ret == KV_TIMEOUT) {
+        //   verify(unreliable);
+        //   continue;
+        // } 
+        // string v3; 
+        // ret = cli->Get(k, &v3);
+        // if (ret == KV_TIMEOUT) {
+        //   verify(unreliable);
+        //   continue;
+        // }
+        // verify(v1+v2 == v3);
+        // break;
+      } while (true);
+      done.fetch_add(1);  
+      // int ret = cli->Append("test", "hello world");
+      // verify(ret == KV_SUCCESS); 
+      // string v;
+      // ret = cli->Get("test", &v);
+      // verify(ret == KV_SUCCESS); 
+      // verify(v == "hello world"); 
+    });
+  }
+  auto t1 = Time::now();
+  while (true) {
+    std::this_thread::sleep_for(100ms);
+    if (done.load() == n_cli) {
+      break;
+    }  
+    if (Time::now() - t1 > 100000000) {
+      Log_fatal("run out of time to finish");
+    }
+  }
+  verify(done.load() == n_cli);
+  Passed2();
+}
 
 int RaftLabTest::testKvBasic() {
   Init2(1, "Basic kv operations");

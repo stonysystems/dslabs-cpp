@@ -7,6 +7,7 @@
 #include "communicator.h"
 #include "../kv/server.h"
 #include "../kv/service.h"
+#include "../shardmaster/service.h"
 
 namespace janus {
 
@@ -74,13 +75,24 @@ void ServerWorker::SetupBase() {
                                            tx_sched_,
                                            std::placeholders::_1));
   }
-  auto kv_svr = make_shared<KvServer>();
-  kv_svr_ = kv_svr;
-  kv_svr_->sp_log_svr_ = rep_log_svr_; 
-  verify(kv_svr_->sp_log_svr_);
-  rep_log_svr_->app_next_ = [kv_svr](Marshallable& m){
-    kv_svr->OnNextCommand(m);
-  };
+
+  if (Config::GetConfig()->yaml_config_["lab"]["shard"].as<bool>()) {
+    sm_svr_ = make_shared<ShardMasterServiceImpl>();
+    sm_svr_->sp_log_svr_ = rep_log_svr_; 
+    verify(sm_svr_->sp_log_svr_);
+    rep_log_svr_->app_next_ = [this](Marshallable& m){
+      sm_svr_->OnNextCommand(m);
+    };
+
+  } else if (Config::GetConfig()->yaml_config_["lab"]["kv"].as<bool>()) {
+    auto kv_svr = make_shared<KvServer>();
+    kv_svr_ = kv_svr;
+    kv_svr_->sp_log_svr_ = rep_log_svr_; 
+    verify(kv_svr_->sp_log_svr_);
+    rep_log_svr_->app_next_ = [kv_svr](Marshallable& m){
+      kv_svr->OnNextCommand(m);
+    };
+  }
 }
 
 void ServerWorker::PopTable() {
@@ -151,10 +163,13 @@ void ServerWorker::SetupService() {
   // init service implementation
 
   if (tx_frame_ != nullptr) {
-    services_ = tx_frame_->CreateRpcServices(site_info_->id,
+    auto svcs = tx_frame_->CreateRpcServices(site_info_->id,
                                              tx_sched_,
                                              svr_poll_mgr_,
                                              scsi_);
+    for (auto& s: svcs) {
+      services_.push_back(shared_ptr<rrr::Service>(s)); 
+    }
   }
 
   if (rep_frame_ != nullptr) {
@@ -162,14 +177,15 @@ void ServerWorker::SetupService() {
                                             rep_sched_,
                                             svr_poll_mgr_,
                                             scsi_);
-
-    services_.insert(services_.end(), s2.begin(), s2.end());
+    for (auto& s: s2) {
+      services_.push_back(shared_ptr<rrr::Service>(s)); 
+    }
   }
 
-  auto s = new KvServiceImpl();
+  auto s = make_shared<KvServiceImpl>();
   s->sp_svr_ = kv_svr_;
   services_.push_back(s);
-
+  services_.push_back(sm_svr_);
 //  auto& alarm = TimeoutALock::get_alarm_s();
 //  ServerWorker::svr_poll_mgr_->add(&alarm);
 
@@ -181,7 +197,7 @@ void ServerWorker::SetupService() {
 
   // reg services
   for (auto service : services_) {
-    rpc_server_->reg(service);
+    rpc_server_->reg(service.get());
   }
 
   // start rpc server
@@ -209,7 +225,7 @@ void ServerWorker::WaitForShutdown() {
       hb_thread_pool_g->release();
 
     for (auto service : services_) {
-      if (DepTranServiceImpl* s = dynamic_cast<DepTranServiceImpl*>(service)) {
+      if (DepTranServiceImpl* s = dynamic_cast<DepTranServiceImpl*>(service.get())) {
         auto& recorder = s->recorder_;
         if (recorder) {
           auto n_flush_avg_ = recorder->stat_cnt_.peek().avg_;
@@ -235,6 +251,7 @@ void ServerWorker::SetupCommo() {
   }
   if (rep_frame_) {
     rep_frame_->kv_svr_ = kv_svr_.get();
+    rep_frame_->sm_svr_ = sm_svr_.get();
     rep_commo_ = rep_frame_->CreateCommo(svr_poll_mgr_);
     if (rep_commo_) {
       rep_commo_->loc_id_ = site_info_->locale_id;
@@ -284,7 +301,7 @@ void ServerWorker::ShutDown() {
   Resume();
   delete rpc_server_;
   for (auto service : services_) {
-    delete service;
+    service.reset();
   }
   delete rep_frame_;
 //  thread_pool_g->release();
