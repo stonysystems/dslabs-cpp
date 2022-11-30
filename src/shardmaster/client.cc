@@ -6,9 +6,10 @@ namespace janus {
 
 uint32_t ShardMasterClient::Op(function<uint32_t(uint32_t*)> func) {
   uint64_t t1 = Time::now();
+  int n_try = 0;
   while (true) {
     uint64_t t2 = Time::now();
-    if (t2 - t1 > 100000000) {
+    if (t2 - t1 > 100000000) { // 100s should be enough 
       return KV_TIMEOUT;
     }
     uint32_t ret = 0;
@@ -22,7 +23,12 @@ uint32_t ShardMasterClient::Op(function<uint32_t(uint32_t*)> func) {
       return KV_SUCCESS;
     }
     if (ret == KV_NOTLEADER) {
+      if (n_try>10) {
+        return KV_NOTLEADER; 
+      }
       leader_idx_ = (leader_idx_+1) % 5;
+      n_try++;
+      usleep(1000000); // 1s
     }
   }
 }

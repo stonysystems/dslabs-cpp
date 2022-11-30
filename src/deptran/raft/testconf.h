@@ -44,7 +44,8 @@ class CommitIndex {
 class RaftTestConfig {
 
  private:
-  static RaftFrame **replicas;
+  // static RaftFrame **replicas;
+  static map<siteid_t, RaftFrame*> frames;
   static std::function<void(Marshallable &)> commit_callbacks[NSERVERS];
   static std::vector<int> committed_cmds[NSERVERS];
   static uint64_t rpc_count_last[NSERVERS];
@@ -55,7 +56,7 @@ class RaftTestConfig {
   std::mutex disconnect_mtx_;
 
  public:
-  RaftTestConfig(RaftFrame **replicas);
+  RaftTestConfig(map<siteid_t, RaftFrame*>& frames);
 
   // sets up learner action functions for the servers
   // so that each committed command on each server is

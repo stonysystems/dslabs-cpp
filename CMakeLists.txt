@@ -216,6 +216,8 @@ file(GLOB BENCH_SRC
 file(GLOB DEPTRAN_SRC
     "src/kv/*.h"
     "src/kv/*.cc"
+    "src/shardkv/*.h"
+    "src/shardkv/*.cc"
     "src/shardmaster/*.h"
     "src/shardmaster/*.cc"
     "src/deptran/*.h"

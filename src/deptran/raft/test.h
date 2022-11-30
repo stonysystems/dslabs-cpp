@@ -7,6 +7,7 @@ namespace janus {
 #ifdef RAFT_TEST_CORO
 
 class KvServer;
+class ShardKvServer;
 class ShardMasterServiceImpl;
 class RaftLabTest {
  public:
@@ -57,6 +58,9 @@ class RaftLabTest {
   int testShardConcurrent(void);
   int testShardMinimalTransferJoin(void);
   int testShardMinimalTransferLeave(void);
+  int testShardStaticShardsPut();
+  int testShardJoinLeaveAppend();
+  // int testShardConcurrentPut();
 
   void checkShardBasic(const map<uint32_t, vector<uint32_t>>& group_servers={});
 

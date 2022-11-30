@@ -7,6 +7,8 @@
 #include "communicator.h"
 #include "../kv/server.h"
 #include "../kv/service.h"
+#include "../shardkv/server.h"
+#include "../shardkv/service.h"
 #include "../shardmaster/service.h"
 
 namespace janus {
@@ -64,6 +66,7 @@ void ServerWorker::SetupBase() {
     rep_sched_->txn_reg_ = tx_reg_;
     rep_sched_->loc_id_ = site_info_->locale_id;
     rep_sched_->site_id_ = site_info_->id;
+    rep_sched_->partition_id_ = site_info_->partition_id_;
     rep_sched_->tx_sched_ = tx_sched_;
     tx_sched_->rep_frame_ = rep_frame_;
     tx_sched_->rep_sched_ = rep_sched_;
@@ -77,13 +80,22 @@ void ServerWorker::SetupBase() {
   }
 
   if (Config::GetConfig()->yaml_config_["lab"]["shard"].as<bool>()) {
-    sm_svr_ = make_shared<ShardMasterServiceImpl>();
-    sm_svr_->sp_log_svr_ = rep_log_svr_; 
-    verify(sm_svr_->sp_log_svr_);
-    rep_log_svr_->app_next_ = [this](Marshallable& m){
-      sm_svr_->OnNextCommand(m);
-    };
-
+    if (this->site_info_->partition_id_ == 0) {
+      sm_svr_ = make_shared<ShardMasterServiceImpl>();
+      sm_svr_->sp_log_svr_ = rep_log_svr_; 
+      verify(sm_svr_->sp_log_svr_);
+      rep_log_svr_->app_next_ = [this](Marshallable& m){
+        sm_svr_->OnNextCommand(m);
+      };
+    } else {
+      auto sk_svr = make_shared<ShardKvServer>();
+      shardkv_svr_ = sk_svr;
+      shardkv_svr_->sp_log_svr_ = rep_log_svr_; 
+      verify(shardkv_svr_->sp_log_svr_);
+      rep_log_svr_->app_next_ = [sk_svr](Marshallable& m){
+        sk_svr->OnNextCommand(m);
+      };
+    }
   } else if (Config::GetConfig()->yaml_config_["lab"]["kv"].as<bool>()) {
     auto kv_svr = make_shared<KvServer>();
     kv_svr_ = kv_svr;
@@ -168,6 +180,7 @@ void ServerWorker::SetupService() {
                                              svr_poll_mgr_,
                                              scsi_);
     for (auto& s: svcs) {
+      verify(s);
       services_.push_back(shared_ptr<rrr::Service>(s)); 
     }
   }
@@ -178,14 +191,19 @@ void ServerWorker::SetupService() {
                                             svr_poll_mgr_,
                                             scsi_);
     for (auto& s: s2) {
+      verify(s);
       services_.push_back(shared_ptr<rrr::Service>(s)); 
     }
   }
-
-  auto s = make_shared<KvServiceImpl>();
-  s->sp_svr_ = kv_svr_;
-  services_.push_back(s);
-  services_.push_back(sm_svr_);
+  if (this->site_info_->partition_id_ == 0) {
+    verify(sm_svr_);
+    services_.push_back(sm_svr_);
+  } else {
+    auto s = make_shared<KvServiceImpl>();
+    s->sp_svr_ = kv_svr_;
+    verify(s);
+    services_.push_back(s);
+  }
 //  auto& alarm = TimeoutALock::get_alarm_s();
 //  ServerWorker::svr_poll_mgr_->add(&alarm);
 
@@ -251,6 +269,7 @@ void ServerWorker::SetupCommo() {
   }
   if (rep_frame_) {
     rep_frame_->kv_svr_ = kv_svr_.get();
+    rep_frame_->shardkv_svr_ = shardkv_svr_.get();
     rep_frame_->sm_svr_ = sm_svr_.get();
     rep_commo_ = rep_frame_->CreateCommo(svr_poll_mgr_);
     if (rep_commo_) {

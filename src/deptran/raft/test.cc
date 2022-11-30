@@ -1,6 +1,8 @@
 #include "test.h"
 #include "../../kv/server.h"
 #include "../../kv/client.h"
+#include "../../shardkv/client.h"
+#include "../../shardkv/server.h"
 #include "../../shardmaster/service.h"
 #include "../../shardmaster/client.h"
 
@@ -81,6 +83,8 @@ int RaftLabTest::RunShard(void) {
       || TEST_EXPAND(testShardConcurrent()) 
       || TEST_EXPAND(testShardMinimalTransferJoin()) 
       || TEST_EXPAND(testShardMinimalTransferLeave()) 
+      || TEST_EXPAND(testShardStaticShardsPut())
+      || TEST_EXPAND(testShardJoinLeaveAppend())
   ) {
     Print("TESTS FAILED");
     return 1;
@@ -206,7 +210,8 @@ void RaftLabTest::Cleanup(void) {
 void RaftLabTest::checkShardBasic(const map<uint32_t, vector<uint32_t>>& group_servers) {
   auto cli = sm_svr_->CreateClient();
   ShardConfig config;
-  verify(cli->Query(-1, &config) == KV_SUCCESS);
+  auto ret = cli->Query(-1, &config);
+  verify(ret == KV_SUCCESS);
   if (group_servers.size() > 0) {
     verify(config.number > 0);
     if (config.group_servers_map_ != group_servers) {
@@ -342,6 +347,49 @@ int RaftLabTest::testShardMinimalTransferLeave() {
       verify(c2.shard_group_map_[shard] == group);
     } 
   }
+  Passed2();
+}
+
+int RaftLabTest::testShardStaticShardsPut() {
+  Init2(5, "Static shards, put");
+  auto sm_cli = sm_svr_->CreateClient();
+  map<uint32_t, vector<uint32_t>> group_servers_2 = {{2,{10,11,12,13,14}}};
+  auto ret = sm_cli->Join(group_servers_2);
+  verify(ret == KV_SUCCESS);
+  auto kv_cli = ShardKvServer::CreateClient(sm_svr_->sp_log_svr_->commo_);
+  string k1 = "1";
+  int r1 = RandomGenerator::rand(0,10000);
+  string v1 = to_string(r1);
+  auto ret1 = kv_cli->Put(k1, v1);
+  verify(ret1 == KV_SUCCESS);
+  string k2 = "2";
+  int r2 = RandomGenerator::rand(0,10000);
+  string v2 = to_string(r2);
+  auto ret2 = kv_cli->Put(k2, v2);
+  verify(ret2 == KV_SUCCESS);
+  Passed2();
+}
+
+int RaftLabTest::testShardJoinLeaveAppend() {
+  Init2(6, "Shard joining and leaving with append");
+  auto sm_cli = sm_svr_->CreateClient();
+  auto kv_cli = ShardKvServer::CreateClient(sm_svr_->sp_log_svr_->commo_);
+  string k1 = "3";
+  int r1 = RandomGenerator::rand(0,10000);
+  string v1 = to_string(r1);
+  auto ret1 = kv_cli->Put(k1, v1);
+  verify(ret1 == KV_SUCCESS);
+  int r2 = RandomGenerator::rand(0,10000);
+  string v2 = to_string(r2);
+  auto ret2 = kv_cli->Append(k1, v2);
+  verify(ret2 == KV_SUCCESS);
+  sm_cli->Leave({3});
+  int r3 = RandomGenerator::rand(0,10000);
+  string v3 = to_string(r3);
+  auto ret3 = kv_cli->Append(k1, v3);
+  string val;
+  kv_cli->Get(k1, &val);
+  verify(val == v1+v2+v3);
   Passed2();
 }
 

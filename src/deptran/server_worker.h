@@ -20,6 +20,7 @@ namespace janus {
 class Communicator;
 class Frame;
 class KvServer;
+class ShardKvServer;
 class ShardMasterServiceImpl;
 class ServerWorker {
  public:
@@ -42,6 +43,7 @@ class ServerWorker {
   TxLogServer *rep_sched_ = nullptr;
   shared_ptr<TxLogServer> rep_log_svr_{};
   shared_ptr<KvServer> kv_svr_{}; 
+  shared_ptr<ShardKvServer> shardkv_svr_{}; 
   shared_ptr<ShardMasterServiceImpl> sm_svr_{}; 
 
   shared_ptr<TxnRegistry> tx_reg_{nullptr};

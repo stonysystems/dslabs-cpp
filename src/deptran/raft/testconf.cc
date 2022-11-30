@@ -7,16 +7,18 @@ namespace janus {
 
 int _test_id_g = 0;
 
-RaftFrame **RaftTestConfig::replicas = nullptr;
+// RaftFrame **RaftTestConfig::replicas = nullptr;
+map<siteid_t, RaftFrame*> RaftTestConfig::frames = {};
 std::function<void(Marshallable &)> RaftTestConfig::commit_callbacks[NSERVERS];
 std::vector<int> RaftTestConfig::committed_cmds[NSERVERS];
 uint64_t RaftTestConfig::rpc_count_last[NSERVERS];
 
-RaftTestConfig::RaftTestConfig(RaftFrame **replicas) {
-  verify(RaftTestConfig::replicas == nullptr);
-  RaftTestConfig::replicas = replicas;
+RaftTestConfig::RaftTestConfig(map<siteid_t, RaftFrame*>& f) {
+  auto& frames = RaftTestConfig::frames;
+  verify(frames.empty());
+  frames = f;
   for (int i = 0; i < NSERVERS; i++) {
-    RaftTestConfig::replicas[i]->svr_->rep_frame_ = RaftTestConfig::replicas[i]->svr_->frame_;
+    frames[i]->svr_->rep_frame_ = frames[i]->svr_->frame_;
     RaftTestConfig::committed_cmds[i].push_back(-1);
     RaftTestConfig::rpc_count_last[i] = 0;
     disconnected_[i] = false;
@@ -32,7 +34,7 @@ void RaftTestConfig::SetLearnerAction(void) {
       Log_debug("server %d committed value %d", i, command.tx_id_);
       RaftTestConfig::committed_cmds[i].push_back(command.tx_id_);
     };
-    RaftTestConfig::replicas[i]->svr_->RegLearnerAction(RaftTestConfig::commit_callbacks[i]);
+    RaftTestConfig::frames[i]->svr_->RegLearnerAction(RaftTestConfig::commit_callbacks[i]);
   }
 }
 
@@ -57,9 +59,9 @@ int RaftTestConfig::waitOneLeader(bool want_leader, int expected) {
     mostRecentTerm = 0;
     for (i = 0; i < NSERVERS; i++) {
       // ignore disconnected servers
-      if (RaftTestConfig::replicas[i]->svr_->IsDisconnected())
+      if (RaftTestConfig::frames[i]->svr_->IsDisconnected())
         continue;
-      RaftTestConfig::replicas[i]->svr_->GetState(&isleader, &term);
+      RaftTestConfig::frames[i]->svr_->GetState(&isleader, &term);
       if (isleader) {
         if (term == mostRecentTerm) {
           Failed("multiple leaders elected in term %ld", term);
@@ -92,7 +94,7 @@ bool RaftTestConfig::TermMovedOn(uint64_t term) {
   for (int i = 0; i < NSERVERS; i++) {
     uint64_t curTerm;
     bool isLeader;
-    RaftTestConfig::replicas[i]->svr_->GetState(&isLeader, &curTerm);
+    RaftTestConfig::frames[i]->svr_->GetState(&isLeader, &curTerm);
     if (curTerm > term) {
       return true;
     }
@@ -103,9 +105,9 @@ bool RaftTestConfig::TermMovedOn(uint64_t term) {
 uint64_t RaftTestConfig::OneTerm(void) {
   uint64_t term, curTerm;
   bool isLeader;
-  RaftTestConfig::replicas[0]->svr_->GetState(&isLeader, &term);
+  RaftTestConfig::frames[0]->svr_->GetState(&isLeader, &term);
   for (int i = 1; i < NSERVERS; i++) {
-    RaftTestConfig::replicas[i]->svr_->GetState(&isLeader, &curTerm);
+    RaftTestConfig::frames[i]->svr_->GetState(&isLeader, &curTerm);
     if (curTerm != term) {
       return -1;
     }
@@ -141,7 +143,7 @@ bool RaftTestConfig::Start(int svr, int cmd, uint64_t *index, uint64_t *term) {
   auto cmdptr_m = dynamic_pointer_cast<Marshallable>(cmdptr);
   // call Start()
   Log_debug("Starting agreement on svr %d for cmd id %d", svr, cmdptr->tx_id_);
-  return RaftTestConfig::replicas[svr]->svr_->Start(cmdptr_m, index, term);
+  return RaftTestConfig::frames[svr]->svr_->Start(cmdptr_m, index, term);
 }
 
 int RaftTestConfig::Wait(uint64_t index, int n, uint64_t term) {
@@ -184,11 +186,11 @@ uint64_t RaftTestConfig::DoAgreement(int cmd, int n, bool retry) {
     uint64_t index, term;
     for (int i = 0; i < NSERVERS; i++) {
       // skip disconnected servers
-      if (RaftTestConfig::replicas[i]->svr_->IsDisconnected())
+      if (RaftTestConfig::frames[i]->svr_->IsDisconnected())
         continue;
       if (Start(i, cmd, &index, &term)) {
         Log_debug("starting cmd ldr=%d cmd=%d index=%ld term=%ld", 
-            RaftTestConfig::replicas[i]->svr_->loc_id_, cmd, index, term);
+            RaftTestConfig::frames[i]->svr_->loc_id_, cmd, index, term);
         ldr = i;
         break;
       }
@@ -305,8 +307,8 @@ void RaftTestConfig::Shutdown(void) {
 
 uint64_t RaftTestConfig::RpcCount(int svr, bool reset) {
   std::lock_guard<std::recursive_mutex> lk(
-    RaftTestConfig::replicas[svr]->commo_->rpc_mtx_);
-  uint64_t count = RaftTestConfig::replicas[svr]->commo_->rpc_count_;
+    RaftTestConfig::frames[svr]->commo_->rpc_mtx_);
+  uint64_t count = RaftTestConfig::frames[svr]->commo_->rpc_count_;
   uint64_t count_last = RaftTestConfig::rpc_count_last[svr];
   if (reset) {
     RaftTestConfig::rpc_count_last[svr] = count;
@@ -318,7 +320,7 @@ uint64_t RaftTestConfig::RpcCount(int svr, bool reset) {
 uint64_t RaftTestConfig::RpcTotal(void) {
   uint64_t total = 0;
   for (int i = 0; i < NSERVERS; i++) {
-    total += RaftTestConfig::replicas[i]->commo_->rpc_count_;
+    total += RaftTestConfig::frames[i]->commo_->rpc_count_;
   }
   return total;
 }
@@ -397,14 +399,14 @@ void RaftTestConfig::netctlLoop(void) {
 
 bool RaftTestConfig::isDisconnected(int svr) {
   std::lock_guard<std::recursive_mutex> lk(connection_m_);
-  return RaftTestConfig::replicas[svr]->svr_->IsDisconnected();
+  return RaftTestConfig::frames[svr]->svr_->IsDisconnected();
 }
 
 void RaftTestConfig::disconnect(int svr, bool ignore) {
   std::lock_guard<std::recursive_mutex> lk(connection_m_);
   if (!isDisconnected(svr)) {
     // simulate disconnected server
-    RaftTestConfig::replicas[svr]->svr_->Disconnect();
+    RaftTestConfig::frames[svr]->svr_->Disconnect();
   } else if (!ignore) {
     verify(0);
   }
@@ -414,7 +416,7 @@ void RaftTestConfig::reconnect(int svr, bool ignore) {
   std::lock_guard<std::recursive_mutex> lk(connection_m_);
   if (isDisconnected(svr)) {
     // simulate reconnected server
-    RaftTestConfig::replicas[svr]->svr_->Reconnect();
+    RaftTestConfig::frames[svr]->svr_->Reconnect();
   } else if (!ignore) {
     verify(0);
   }
@@ -423,11 +425,15 @@ void RaftTestConfig::reconnect(int svr, bool ignore) {
 void RaftTestConfig::slow(int svr, uint32_t msec) {
   std::lock_guard<std::recursive_mutex> lk(connection_m_);
   verify(!isDisconnected(svr));
-  RaftTestConfig::replicas[svr]->commo_->rpc_poll_->slow(msec * 1000);
+  auto& comm = RaftTestConfig::frames[svr]->commo_;
+  verify(comm);
+  auto& poll = comm->rpc_poll_;
+  verify(poll);
+  poll->slow(msec * 1000);
 }
 
 RaftServer *RaftTestConfig::GetServer(int svr) {
-  return RaftTestConfig::replicas[svr]->svr_;
+  return RaftTestConfig::frames[svr]->svr_;
 }
 
 #endif

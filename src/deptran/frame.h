@@ -21,12 +21,14 @@ class Communicator;
 class Workload;
 
 class KvServer;
+class ShardKvServer;
 class ShardMasterServiceImpl;
 class Frame {
  public:
   Communicator *commo_ = nullptr;
   KvServer* kv_svr_ = nullptr;
   ShardMasterServiceImpl* sm_svr_ = nullptr;
+  ShardKvServer* shardkv_svr_ = nullptr;
 
   // static variables to hold frames
   static map<string, int> &FrameNameToMode();

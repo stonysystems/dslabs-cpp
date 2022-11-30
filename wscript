@@ -173,6 +173,7 @@ def build(bld):
             "src/deptran/classic/*.cc "
             "src/deptran/extern_c/*.cc "
             "src/kv/*.cc "
+            "src/shardkv/*.cc "
             "src/shardmaster/*.cc "
             "src/bench/*/*.cc ")
 
@@ -363,6 +364,11 @@ def _gen_srpc_headers():
                 srpc,
                 "bin/rpcgen --cpp " + srpc)
     for srpc in glob.glob("src/shardmaster/*.rpc"):
+        target = os.path.splitext(srpc)[0]+'.h'
+        _depend(target,
+                srpc,
+                "bin/rpcgen --cpp " + srpc)
+    for srpc in glob.glob("src/shardkv/*.rpc"):
         target = os.path.splitext(srpc)[0]+'.h'
         _depend(target,
                 srpc,
