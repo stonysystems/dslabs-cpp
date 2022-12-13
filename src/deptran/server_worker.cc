@@ -203,6 +203,10 @@ void ServerWorker::SetupService() {
     s->sp_svr_ = kv_svr_;
     verify(s);
     services_.push_back(s);
+    auto s2 = make_shared<ShardKvServiceImpl>();
+    s2->sp_svr_ = shardkv_svr_;
+    verify(s2);
+    services_.push_back(s2);
   }
 //  auto& alarm = TimeoutALock::get_alarm_s();
 //  ServerWorker::svr_poll_mgr_->add(&alarm);

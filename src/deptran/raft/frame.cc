@@ -104,7 +104,7 @@ TxLogServer *RaftFrame::CreateScheduler() {
   int n_sites = 5;
   if (Config::GetConfig()->yaml_config_["lab"]["shard"].as<bool>()) {
     int n_partitions = Config::GetConfig()->GetNumPartition();
-    verify(n_partitions==2);
+    // verify(n_partitions==2);
     n_sites = 5*n_partitions; 
   }
   if (frames_.size() == n_sites) {
