@@ -34,6 +34,7 @@ sudo apt-get install -y \
     libboost-all-dev \
     libyaml-cpp-dev \
     libjemalloc-dev \
+    python2 \
     python3-dev \
     python3-pip \
     python3-wheel \
