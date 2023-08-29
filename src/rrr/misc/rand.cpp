@@ -109,15 +109,15 @@ int RandomGenerator::nu_rand(int a, int x, int y) {
 }
 
 unsigned long long RandomGenerator::rdtsc() {
-#ifndef __APPLE__
-    unsigned long long counter;
-    __asm__ __volatile__("mrs %0, CNTVCT_EL0": "=r" (counter));
-    return counter;
-#else
+    unsigned long long time_counter;
+#ifdef __arm__
+    __asm__ __volatile__("mrs %0, CNTVCT_EL0": "=r" (time_counter));
+#elif __x86_64__
     unsigned int lo, hi;
     __asm__ __volatile__("rdtsc" : "=a" (lo), "=d" (hi));
-    return ((unsigned long long)hi << 32) | lo;
+    time_counter = ((unsigned long long)hi << 32) | lo;
 #endif
+    return time_counter;
 }
 
 unsigned int RandomGenerator::weighted_select(const std::vector<double> &weight_vector) {
