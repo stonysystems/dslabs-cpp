@@ -589,6 +589,10 @@ int RaftLabTest::testFigure8(void) {
     auto leader3 = config_->OneLeader();
     AssertOneLeader(leader3);
     if (leader3 != leader1 && leader3 != ((leader1 + 4) % NSERVERS)) {
+      // Reconnect all servers to ensure a correct restart for another loop.
+      for (int i = 0; i < NSERVERS; i++) {
+        config_->Reconnect(i);
+      }
       continue; // failed this step with a 1/3 chance. just start over until success.
     }
     // give leader3 more than enough time to replicate index1 to a third server
