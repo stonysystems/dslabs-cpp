@@ -779,7 +779,9 @@ int RaftLabTest::testKvReElection() {
   AssertOneLeader(leader);
   AssertReElection(leader, oldLeader);
   // try write to the new leader
-  cli->leader_idx_ = leader;
+  uint64_t leaderLocId = config_->getLocId(leader);
+  Log_debug("leader loc id is %d, replica index is %d",leaderLocId,leader);
+  cli->leader_idx_ = leaderLocId;
   string v2 = to_string(RandomGenerator::rand(0, 10000));
   auto ret = cli->Append(k, v2);
   // Log_info("ret %d", ret);

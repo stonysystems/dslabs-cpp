@@ -151,6 +151,11 @@ int RaftTestConfig::NCommitted(uint64_t index) {
   return n;
 }
 
+uint64_t RaftTestConfig::getLocId(uint64_t idx)
+{
+return RaftTestConfig::replicas[idx]->svr_->loc_id_;
+}
+
 bool RaftTestConfig::Start(int svr, int cmd, uint64_t *index, uint64_t *term) {
   // Construct an empty TpcCommitCommand containing cmd as its tx_id_
   auto cmdptr = std::make_shared<TpcCommitCommand>();

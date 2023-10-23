@@ -105,6 +105,9 @@ class RaftTestConfig {
   // Checks if the committed value for index is the same across servers.
   int NCommitted(uint64_t index);
 
+  //Returns loc id of replica at index idx  
+  uint64_t getLocId(uint64_t idx);
+
   // Calls Start() to specified server
   bool Start(int svr, int cmd, uint64_t *index, uint64_t *term);
 
