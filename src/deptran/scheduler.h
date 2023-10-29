@@ -157,6 +157,10 @@ class TxLogServer {
     app_next_ = learner_action;
   }
 
+  function<void(Marshallable &)> GetRegLearnerAction() {
+    return app_next_;
+  }
+
   /**
    * Check if the command is already committed
    * @param commit_cmd command to be checked
@@ -167,6 +171,7 @@ class TxLogServer {
   virtual void Next(Marshallable& cmd) { verify(0); };
 
 	virtual void Setup() { verify(0); } ;
+  virtual void Shutdown() { verify(0); } ;
   virtual bool IsLeader() { verify(0); } ;
   virtual bool IsFPGALeader() { verify(0); } ;
 	

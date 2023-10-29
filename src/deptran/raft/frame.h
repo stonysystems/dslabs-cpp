@@ -6,12 +6,15 @@
 #include "../constants.h"
 #include "commo.h"
 #include "server.h"
+#include "service.h"
 
 namespace janus {
 
 class RaftFrame : public Frame {
  private:
   slotid_t slot_hint_ = 1;
+  std::function<void()> restart_;
+  RaftServiceImpl *service;
 #ifdef RAFT_TEST_CORO
   static std::recursive_mutex raft_test_mutex_;
   static std::shared_ptr<Coroutine> raft_test_coro_;
@@ -24,8 +27,11 @@ class RaftFrame : public Frame {
  public:
   RaftFrame(int mode);
   RaftCommo *commo_ = nullptr;
+  shared_ptr<Persister> persister = nullptr;
   /* TODO: have another class for common data */
   RaftServer *svr_ = nullptr;
+  void SetRestart(function<void()> restart) override;
+  void Restart() override;
   Executor *CreateExecutor(cmdid_t cmd_id, TxLogServer *sched) override;
   Coordinator *CreateCoordinator(cooid_t coo_id,
                                  Config *config,
@@ -34,6 +40,7 @@ class RaftFrame : public Frame {
                                  uint32_t id,
                                  shared_ptr<TxnRegistry> txn_reg) override;
   TxLogServer *CreateScheduler() override;
+  TxLogServer *RecreateScheduler() override;
   Communicator *CreateCommo(PollMgr *poll = nullptr) override;
   vector<rrr::Service *> CreateRpcServices(uint32_t site_id,
                                            TxLogServer *dtxn_sched,

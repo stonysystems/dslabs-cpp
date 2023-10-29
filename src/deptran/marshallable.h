@@ -48,7 +48,9 @@ class MarshallDeputy {
 		CMD_BLK_PXS = 9,
     CMD_NOOP = 10,
     CMD_TPC_BATCH = 11,
-    CMD_MULTI_STRING = 12
+    CMD_MULTI_STRING = 12,
+    CMD_STATE = 13,
+    CMD_SNAPSHOT = 14
   };
   /**
    * This should be called by the rpc layer.

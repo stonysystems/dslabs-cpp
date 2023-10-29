@@ -38,6 +38,24 @@ void RaftTestConfig::SetLearnerAction(void) {
   }
 }
 
+int RaftTestConfig::GetLogSize(void) {
+    int logSize = 0;
+    for (int i = 0; i < NSERVERS; i++) {
+        int n = RaftTestConfig::frames[i]->svr_->persister->RaftStateSize();
+        logSize = n > logSize ? n : logSize;
+    }
+    return logSize;
+}
+
+int RaftTestConfig::GetSnapshotSize(void) {
+    int snapSize = 0;
+    for (int i = 0; i < NSERVERS; i++) {
+        int n = RaftTestConfig::frames[i]->svr_->persister->SnapshotSize();
+        snapSize = n > snapSize ? n : snapSize;
+    }
+    return snapSize;
+}
+
 int RaftTestConfig::OneLeader(int expected) {
   return waitOneLeader(true, expected);
 }

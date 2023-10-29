@@ -7,6 +7,7 @@
 #include "../deptran/raft/server.h"
 
 namespace janus {
+ 
 class RaftServer;
 
 const int KV_SUCCESS = 0;
@@ -47,7 +48,10 @@ class KvServer {
   shared_ptr<TxLogServer> sp_log_svr_; 
   int64_t op_id_cnt_ = 0;
   uint32_t cli_cnt_ = 0;
+  uint64_t maxraftstate_ = 0;
 
+  KvServer(uint64_t maxraftstate) ;
+  ~KvServer() ;
   /* add your variables here */
 
   RaftServer& GetRaftServer() {

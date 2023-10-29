@@ -56,6 +56,7 @@ class ServerWorker {
   int DbChecksum();
   void SetupHeartbeat();
   void PopTable();
+  void RestartScheduler();
   void SetupBase();
   void SetupService();
   void SetupCommo();

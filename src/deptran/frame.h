@@ -44,6 +44,8 @@ class Frame {
   Frame(int mode) : mode_(mode) {};
   virtual ~Frame() {};
   // for both dtxn and rep
+  virtual void SetRestart(function<void()> restart) {verify(0);} ;
+  virtual void Restart() {verify(0);} ;
   virtual Coordinator *CreateCoordinator(cooid_t coo_id,
                                          Config *config,
                                          int benchmark,
@@ -52,6 +54,9 @@ class Frame {
                                          shared_ptr<TxnRegistry> txn_reg);
   virtual Executor *CreateExecutor(cmdid_t cmd_id, TxLogServer *sch);
   virtual TxLogServer *CreateScheduler();
+  virtual TxLogServer *RecreateScheduler() {
+    return nullptr;
+  }
   virtual Communicator *CreateCommo(PollMgr *pollmgr);
   // for only dtxn
   Sharding *CreateSharding();

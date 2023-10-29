@@ -11,6 +11,15 @@ static int volatile x1 =
                                        return new MultiStringMarshallable;
                                      });
 
+KvServer::KvServer(uint64_t maxraftstate=0) {
+    maxraftstate_ = maxraftstate;
+}
+
+KvServer::~KvServer() {
+  /* Your code here for server teardown */
+
+}
+
 int64_t KvServer::GetNextOpId() {
   verify(sp_log_svr_);
   int64_t ret = sp_log_svr_->site_id_;

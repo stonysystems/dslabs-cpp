@@ -88,7 +88,8 @@ Coordinator *RaftFrame::CreateCoordinator(cooid_t coo_id,
 TxLogServer *RaftFrame::CreateScheduler() {
   if(svr_ == nullptr)
   {
-    svr_ = new RaftServer(this);
+    persister = make_shared<Persister>();
+    svr_ = new RaftServer(this, persister);
   }
   else
   {
@@ -116,6 +117,19 @@ TxLogServer *RaftFrame::CreateScheduler() {
   return svr_ ;
 }
 
+TxLogServer *RaftFrame::RecreateScheduler() {
+  if(svr_ != nullptr)
+  {
+    svr_ = new RaftServer(this, persister);
+    service->svr_ = (RaftServer*)svr_;
+  }
+  else
+  {
+    verify(0);
+  }
+  return svr_;
+}
+
 Communicator *RaftFrame::CreateCommo(PollMgr *poll) {
   // We only have 1 instance of RaftFrame object that is returned from
   // GetFrame method. RaftCommo currently seems ok to share among the
@@ -125,17 +139,6 @@ Communicator *RaftFrame::CreateCommo(PollMgr *poll) {
   }
 
   #ifdef RAFT_TEST_CORO
-  raft_test_mutex_.lock();
-  // verify(n_replicas_ == 5);
-  // for (int i = 0; i < 5; i++) {
-  //   if (frames_[i] == this) {
-  //     // verify(n_commo_ < 5);
-  //     // n_commo_++;
-  //     break;
-  //   }
-  // }
-  raft_test_mutex_.unlock();
-
   if (site_info_->id == 0) {
     verify(raft_test_coro_.get() == nullptr);
     Log_debug("Creating Raft test coroutine");
@@ -146,9 +149,6 @@ Communicator *RaftFrame::CreateCommo(PollMgr *poll) {
       verify(RaftFrame::all_sites_created_s);
       auto testconfig = new RaftTestConfig(frames_);
       RaftLabTest test(testconfig);
-      test.kv_svr_ = this->kv_svr_;
-      test.sm_svr_ = this->sm_svr_;
-      verify(test.kv_svr_!= nullptr || test.sm_svr_ != nullptr);
       test.Run();
       test.Cleanup();
       // Turn off Reactor loop
@@ -189,10 +189,20 @@ RaftFrame::CreateRpcServices(uint32_t site_id,
   auto config = Config::GetConfig();
   auto result = std::vector<Service *>();
   switch (config->replica_proto_) {
-    case MODE_FPGA_RAFT:result.push_back(new RaftServiceImpl(rep_sched));
+    case MODE_FPGA_RAFT:
+      service = new RaftServiceImpl(rep_sched);
+      result.push_back(service);
     default:break;
   }
   return result;
+}
+
+void RaftFrame::SetRestart(function<void()> restart) {
+  restart_ = restart;
+}
+
+void RaftFrame::Restart() {
+  (restart_)();
 }
 
 } // namespace janus;

@@ -10,8 +10,9 @@
 
 namespace janus {
 
-RaftServer::RaftServer(Frame * frame) {
+RaftServer::RaftServer(Frame * frame, shared_ptr<Persister> persister_) {
   frame_ = frame ;
+  persister = persister_;
   /* Your code here for server initialization. Note that this function is 
      called in a different OS thread. Be careful about thread safety if 
      you want to initialize variables here. */
@@ -29,6 +30,18 @@ void RaftServer::Setup() {
      Your code should be aware of that. This function is always called in the 
      same OS thread as the RPC handlers. */
   SyncRpcExample();
+}
+
+void RaftServer::Shutdown() {
+  /* Your code here for server shutdown */
+}
+
+void RaftServer::Persist() {
+  /* Your code here for persisting raft state */
+}
+
+void RaftServer::ReadPersist() {
+  /* Your code here for reading persisted raft state */
 }
 
 bool RaftServer::Start(shared_ptr<Marshallable> &cmd,
