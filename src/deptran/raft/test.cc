@@ -589,7 +589,7 @@ int RaftLabTest::testKvSnapInstallRPC() {
 }
 
 int RaftLabTest::testKvSnapSize() {
-  Init2(10, "Basic kv snap : InstallSnapshot RPC");
+  Init2(10, "Basic kv snap : Check Snapshot size is reasonable");
     auto cli = config_->GetKvServer(0)->CreateClient();
     auto leader = config_->OneLeader();
     cli->leader_idx_ = leader;

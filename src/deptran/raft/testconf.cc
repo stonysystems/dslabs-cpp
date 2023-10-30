@@ -153,7 +153,7 @@ int RaftTestConfig::NCommitted(uint64_t index) {
 
 uint64_t RaftTestConfig::getLocId(uint64_t idx)
 {
-return RaftTestConfig::replicas[idx]->svr_->loc_id_;
+return RaftTestConfig::frames[idx]->svr_->loc_id_;
 }
 
 bool RaftTestConfig::Start(int svr, int cmd, uint64_t *index, uint64_t *term) {
