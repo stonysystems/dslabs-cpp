@@ -1348,7 +1348,7 @@ int RaftLabTest::testBasicPersistence(void) {
   Init2(12, "Basic persistence");
   int leader1 = config_->OneLeader();
   AssertOneLeader(leader1);
-  DoAgreeAndAssertIndex(1201, NSERVERS, index_++);
+  DoAgreeAndAssertWaitSuccess(1201, NSERVERS);
   
   Log_debug("restart all servers");
   for (int i=0; i<NSERVERS; i++) {
