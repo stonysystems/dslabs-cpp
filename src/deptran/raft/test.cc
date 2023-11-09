@@ -1348,28 +1348,48 @@ int RaftLabTest::testBasicPersistence(void) {
   Init2(12, "Basic persistence");
   int leader1 = config_->OneLeader();
   AssertOneLeader(leader1);
+  int maxraftstate = 1000;
+  int prevLogSize = 0;
   DoAgreeAndAssertWaitSuccess(1201, NSERVERS);
-  
+  int currentLogSize = config_->GetLogSize();
+  Log_info("current log size %d", currentLogSize);
+  if (currentLogSize > (maxraftstate * 8) || currentLogSize == prevLogSize) {
+      verify(0);
+  }
   Log_debug("restart all servers");
   for (int i=0; i<NSERVERS; i++) {
     config_->Restart(i);
   }
+  
   Coroutine::Sleep(ELECTIONTIMEOUT);
   DoAgreeAndAssertIndex(1202, NSERVERS, index_++);
-
+  prevLogSize = currentLogSize;
+  currentLogSize = config_->GetLogSize();
+  if (currentLogSize > (maxraftstate * 8) || currentLogSize == prevLogSize) {
+      verify(0);
+  }
   Log_debug("restart leader");
   int leader2 = config_->OneLeader();
   AssertOneLeader(leader2);
   config_->Restart(leader2);
   Coroutine::Sleep(ELECTIONTIMEOUT);
   DoAgreeAndAssertIndex(1203, NSERVERS, index_++);
-
+  prevLogSize = currentLogSize;
+  currentLogSize = config_->GetLogSize();
+  if (currentLogSize > (maxraftstate * 8) || currentLogSize == prevLogSize) {
+      verify(0);
+  }
   Log_debug("disconnect and restart leader");
   int leader3 = config_->OneLeader();
   AssertOneLeader(leader3);
   config_->Disconnect(leader3);
   Coroutine::Sleep(ELECTIONTIMEOUT);
   DoAgreeAndAssertIndex(1204, NSERVERS-1, index_++);
+  prevLogSize = currentLogSize;
+  currentLogSize = config_->GetLogSize();
+  if (currentLogSize > (maxraftstate * 8) || currentLogSize == prevLogSize) {
+      verify(0);
+  }
   config_->Reconnect(leader3);
   config_->Restart(leader3);
 
@@ -1378,24 +1398,44 @@ int RaftLabTest::testBasicPersistence(void) {
   AssertOneLeader(leader4);
   config_->Disconnect((leader4 + 1) % NSERVERS);
   DoAgreeAndAssertIndex(1205, NSERVERS-1, index_++);
+  prevLogSize = currentLogSize;
+  currentLogSize = config_->GetLogSize();
+  if (currentLogSize > (maxraftstate * 8) || currentLogSize == prevLogSize) {
+      verify(0);
+  }
   config_->Reconnect((leader4 + 1) % NSERVERS);
   config_->Restart((leader4 + 1) % NSERVERS);
 
   DoAgreeAndAssertIndex(1206, NSERVERS, index_++);
+  prevLogSize = currentLogSize;
+  currentLogSize = config_->GetLogSize();
+  if (currentLogSize > (maxraftstate * 8) || currentLogSize == prevLogSize) {
+      verify(0);
+  }
   Passed2();
 }
 
 int RaftLabTest::testMorePersistence1(void) {
   Init2(13, "More persistence - part 1");
+  int maxraftstate = 1000;
+  int prevLogSize = 0;
+  int currentLogSize = 0;
   for (int iter = 0; iter < 5; iter++){
     int leader1 = config_->OneLeader();
     AssertOneLeader(leader1);
     DoAgreeAndAssertIndex(1301 + (10*iter), NSERVERS, index_++);
-
+    currentLogSize = config_->GetLogSize();
+    if (currentLogSize > (maxraftstate * 8) || currentLogSize == prevLogSize) {
+        verify(0);
+    }
     config_->Disconnect((leader1 + 1) % NSERVERS);
     config_->Disconnect((leader1 + 2) % NSERVERS);
     DoAgreeAndAssertIndex(1302 + (10*iter), NSERVERS-2, index_++);
-
+    prevLogSize = currentLogSize;
+    currentLogSize = config_->GetLogSize();
+    if (currentLogSize > (maxraftstate * 8) || currentLogSize == prevLogSize) {
+        verify(0);
+    }
     config_->Disconnect(leader1 % NSERVERS);
     config_->Disconnect((leader1 + 3) % NSERVERS);
     config_->Disconnect((leader1 + 4) % NSERVERS);
@@ -1409,27 +1449,46 @@ int RaftLabTest::testMorePersistence1(void) {
     config_->Restart((leader1 + 3) % NSERVERS);
     Coroutine::Sleep(ELECTIONTIMEOUT);
     DoAgreeAndAssertIndex(1303 + (10*iter), NSERVERS-2, index_++);
-
+    prevLogSize = currentLogSize;
+    currentLogSize = config_->GetLogSize();
+    if (currentLogSize > (maxraftstate * 8) || currentLogSize == prevLogSize) {
+        verify(0);
+    }
     config_->Reconnect(leader1 % NSERVERS);
     config_->Restart(leader1 % NSERVERS);
     config_->Reconnect((leader1 + 4) % NSERVERS);
     config_->Restart((leader1 + 4) % NSERVERS);
   }
   DoAgreeAndAssertIndex(1360, NSERVERS, index_++);
+  prevLogSize = currentLogSize;
+  currentLogSize = config_->GetLogSize();
+  if (currentLogSize > (maxraftstate * 8) || currentLogSize == prevLogSize) {
+      verify(0);
+  }
   Passed2();
 }
 
 int RaftLabTest::testMorePersistence2(void) {
   Init2(14, "More persistence - part 2");
+  int maxraftstate = 1000;
+  int prevLogSize = 0;
+  int currentLogSize = 0;
   for (int iter = 0; iter < 5; iter++){
     int leader1 = config_->OneLeader();
     AssertOneLeader(leader1);
     DoAgreeAndAssertIndex(1401 + (10 * iter), NSERVERS, index_++);
-
+    currentLogSize = config_->GetLogSize();
+    if (currentLogSize > (maxraftstate * 8) || currentLogSize == prevLogSize) {
+        verify(0);
+    }
     config_->Disconnect((leader1 + 1) % NSERVERS);
     config_->Disconnect((leader1 + 2) % NSERVERS);
     DoAgreeAndAssertIndex(1402 + (10 * iter), NSERVERS-2, index_++);
-
+    prevLogSize = currentLogSize;
+    currentLogSize = config_->GetLogSize();
+    if (currentLogSize > (maxraftstate * 8) || currentLogSize == prevLogSize) {
+        verify(0);
+    }
     config_->Disconnect(leader1 % NSERVERS);
     config_->Disconnect((leader1 + 3) % NSERVERS);
     config_->Disconnect((leader1 + 4) % NSERVERS);
@@ -1443,13 +1502,22 @@ int RaftLabTest::testMorePersistence2(void) {
     config_->Restart(leader1 % NSERVERS);
     Coroutine::Sleep(ELECTIONTIMEOUT);
     DoAgreeAndAssertIndex(1403 + (10 * iter), NSERVERS-2, index_++);
-
+    prevLogSize = currentLogSize;
+    currentLogSize = config_->GetLogSize();
+    if (currentLogSize > (maxraftstate * 8) || currentLogSize == prevLogSize) {
+        verify(0);
+    }
     config_->Reconnect((leader1 + 3) % NSERVERS);
     config_->Restart((leader1 + 3) % NSERVERS);
     config_->Reconnect((leader1 + 4) % NSERVERS);
     config_->Restart((leader1 + 4) % NSERVERS);
   }
   DoAgreeAndAssertIndex(1460, NSERVERS, index_++);
+  prevLogSize = currentLogSize;
+  currentLogSize = config_->GetLogSize();
+  if (currentLogSize > (maxraftstate * 8) || currentLogSize == prevLogSize) {
+      verify(0);
+  }
   Passed2();
 }
 
