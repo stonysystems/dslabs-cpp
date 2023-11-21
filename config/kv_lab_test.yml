@@ -29,3 +29,5 @@ lab:
   kv: true  
   maxraftstate: 1000
   shard: false
+  transaction: false
+  

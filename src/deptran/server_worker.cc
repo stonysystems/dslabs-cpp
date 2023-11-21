@@ -103,6 +103,16 @@ void ServerWorker::RestartScheduler() {
     }
   );
   svr_poll_mgr_->add(sp_j);
+    if (Config::GetConfig()->yaml_config_["lab"]["shard"].as<bool>() && this->site_info_->partition_id_ != 0) {
+    std::shared_ptr<OneTimeJob> sp_j  = std::make_shared<OneTimeJob>(
+      [this]() { 
+        if (shardkv_svr_) {
+          shardkv_svr_->Setup();
+        }
+      }
+    );
+    svr_poll_mgr_->add(sp_j);
+  }
   Log_info("Done with %d", site_info_->id);
 }
 
@@ -372,6 +382,16 @@ void ServerWorker::SetupCommo() {
     }
   );
   svr_poll_mgr_->add(sp_j);
+  if (Config::GetConfig()->yaml_config_["lab"]["shard"].as<bool>() && this->site_info_->partition_id_ != 0) {
+    std::shared_ptr<OneTimeJob> sp_j  = std::make_shared<OneTimeJob>(
+      [this]() { 
+        if (shardkv_svr_) {
+          shardkv_svr_->Setup();
+        }
+      }
+    );
+    svr_poll_mgr_->add(sp_j);
+  }
 
 #ifdef RAFT_TEST_CORO
 // dead loop this thread for coroutine scheduling 

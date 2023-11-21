@@ -13,6 +13,10 @@ int64_t ShardKvServer::GetNextOpId() {
   return ret;
 }
 
+void ShardKvServer::Setup() {
+  /* Add code for recovery */
+}
+
 int ShardKvServer::Put(const uint64_t& oid, 
                   const string& k,
                   const string& v) {

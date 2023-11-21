@@ -83,6 +83,31 @@ int RaftLabTest::GenericKvTest(int n_cli, bool unreliable, uint64_t timeout, int
   return 0;
 }
 
+int RaftLabTest::RunTransaction(void) {
+  Coroutine::Sleep(5000000);
+  int leader = config_->OneLeader();   
+  DistributeShards();
+  if (false
+      || TEST_EXPAND(testTransactionAtomiticyCommit()) 
+      || TEST_EXPAND(testTransactionAtomiticyAbort()) 
+      || TEST_EXPAND(testTransactionSingleServerShard1())
+      || TEST_EXPAND(testTransactionSingleServerShard2())
+      || TEST_EXPAND(testTransactionSingleServerShard3())
+      || TEST_EXPAND(testTransactionSingleServerShard4())
+      || TEST_EXPAND(testTransactionCrossServerShard1())
+      || TEST_EXPAND(testTransactionCrossServerShard2())
+      || TEST_EXPAND(testTransactionCrossServerShard3())
+      || TEST_EXPAND(testTransactionCrossServerShard4())
+      || TEST_EXPAND(testTransactionConcurrency1())
+      || TEST_EXPAND(testTransactionConcurrency2())
+  ) {
+    Print("TESTS FAILED");
+    return 1;
+  }
+  Print("ALL TESTS PASSED");
+  return 0;
+}
+
 int RaftLabTest::RunShard(void) {
   Coroutine::Sleep(5000000);
   int leader = config_->OneLeader();   
@@ -154,7 +179,10 @@ int RaftLabTest::RunRaft(void) {
 int RaftLabTest::Run(void) {
   auto config_node = Config::GetConfig()->yaml_config_["lab"];
   if (config_node) {
-    if (config_node["shard"].as<bool>()) {
+    if (config_node["shard"].as<bool>() && config_node["transaction"].as<bool>()) {
+      return RunTransaction();
+    } 
+    if (config_node["shard"].as<bool>() && !config_node["transaction"].as<bool>()) {
       return RunShard();
     } 
     if (config_node["kv"].as<bool>()) {
@@ -219,6 +247,624 @@ void RaftLabTest::Cleanup(void) {
         Assert2(r > 0, "failed to reach agreement for command %d among %d servers", cmd, n); \
         index_ = r + 1; \
       }
+
+void RaftLabTest::DistributeShards() {
+  verify(config_->GetShardMasterServer(0) != nullptr);
+  auto cli = config_->GetShardMasterServer(0)->CreateClient();
+  map<uint32_t, vector<uint32_t>> group_servers = {{1,{5,6,7,8,9}}};
+  auto ret = cli->Join(group_servers);
+  verify(ret == KV_SUCCESS);
+  map<uint32_t, vector<uint32_t>> group_servers_2 = {{2,{10,11,12,13,14}}};
+  ret = cli->Join(group_servers_2);
+  verify(ret == KV_SUCCESS);
+  map<uint32_t, vector<uint32_t>> group_servers_all = {{1,{5,6,7,8,9}},{2,{10,11,12,13,14}}};
+  checkShardBasic(group_servers_all);
+}
+
+int RaftLabTest::testTransactionAtomiticyCommit() {
+  Init2(1, "Transaction commit perists all changes");
+  auto sm_cli = config_->GetShardMasterServer(0)->CreateClient();
+  auto kv_cli = ShardKvServer::CreateClient(config_->GetShardMasterServer(0)->sp_log_svr_->commo_);
+
+  string k1 = to_string(1);
+  int r = RandomGenerator::rand(0,10000);
+  string val1 = to_string(r);
+  auto ret1 = kv_cli->Put(k1, val1);
+  verify(ret1 == KV_SUCCESS);
+
+  auto tx_id = kv_cli->TxBegin();
+  vector<string> values;
+  for (int i = 1; i <= 10; i++) {
+    string k = to_string(i);
+    int r = RandomGenerator::rand(0,10000);
+    string v = to_string(r);
+    values.push_back(v);
+    auto ret1 = kv_cli->TxPut(tx_id, k, v);
+    verify(ret1 == KV_SUCCESS);
+  }
+
+  string tx_val;
+  auto ret2 = kv_cli->TxGet(tx_id, k1, &tx_val);
+  verify(ret2 == KV_SUCCESS);
+  verify(tx_val == values[0]);
+
+  string val2;
+  kv_cli->Get(to_string(1), &val2);
+  verify(val1 == val2);
+
+  auto ret3 = kv_cli->TxCommit(tx_id);
+  verify(ret3 == TX_COMMITTED);
+
+  for (int i = 1; i <= 10; i++) {
+    string k1 = to_string(i);
+    string val;
+    auto ret1 = kv_cli->Get(k1, &val);
+    verify(ret1 == KV_SUCCESS);
+    verify(val == values[i-1]);
+  }
+  Passed2();
+}
+
+int RaftLabTest::testTransactionAtomiticyAbort() {
+  Init2(2, "Transaction abort discards all changes");
+  auto sm_cli = config_->GetShardMasterServer(0)->CreateClient();
+  auto kv_cli = ShardKvServer::CreateClient(config_->GetShardMasterServer(0)->sp_log_svr_->commo_);
+
+  vector<string> old_values;
+  for (int i = 1; i <= 10; i++) {
+    string k = to_string(i);
+    int r = RandomGenerator::rand(0,10000);
+    string v = to_string(r);
+    old_values.push_back(v);
+    auto ret1 = kv_cli->Put(k, v);
+    verify(ret1 == KV_SUCCESS);
+  }
+
+  auto tx_id = kv_cli->TxBegin();
+  vector<string> values;
+  for (int i = 1; i <= 10; i++) {
+    string k = to_string(i);
+    int r = RandomGenerator::rand(0,10000);
+    string v = to_string(r);
+    values.push_back(v);
+    auto ret1 = kv_cli->TxPut(tx_id, k, v);
+    verify(ret1 == KV_SUCCESS);
+  }
+
+  string k1 = to_string(1);
+  string tx_val;
+  auto ret2 = kv_cli->TxGet(tx_id, k1, &tx_val);
+  verify(ret2 == KV_SUCCESS);
+  verify(tx_val == values[0]);
+
+  auto ret3 = kv_cli->TxAbort(tx_id);
+  verify(ret3 == TX_ABORTED);
+
+  for (int i = 1; i <= 10; i++) {
+    string k1 = to_string(i);
+    string val;
+    auto ret1 = kv_cli->Get(k1, &val);
+    verify(ret1 == KV_SUCCESS);
+    verify(val == old_values[i-1]);
+  }
+  Passed2();
+}
+
+int RaftLabTest::testTransactionSingleServerShard1() {
+  Init2(3, "Transaction Isolation on Single Server Shard: concurrent transaction aborts. (W before R)");
+  auto sm_cli = config_->GetShardMasterServer(0)->CreateClient();
+  auto kv_cli = ShardKvServer::CreateClient(config_->GetShardMasterServer(0)->sp_log_svr_->commo_);
+
+  string k1 = to_string(1);
+  int r = RandomGenerator::rand(0,10000);
+  string val1 = to_string(r);
+  auto ret1 = kv_cli->Put(k1, val1);
+  verify(ret1 == KV_SUCCESS);
+
+  auto tx_id_1 = kv_cli->TxBegin();
+  string val2;
+  auto ret2 = kv_cli->TxGet(tx_id_1, k1, &val2);
+  verify(ret2 == KV_SUCCESS);
+  verify(val2 == val1);
+
+  r = RandomGenerator::rand(0,10000);
+  string val3 = to_string(r);
+  auto ret3 = kv_cli->Put(k1, val3);
+  verify(ret3 == KV_SUCCESS);
+
+  auto ret_tx = kv_cli->TxCommit(tx_id_1);
+  verify(ret_tx = TX_ABORTED);
+
+  string val4;
+  auto ret4 = kv_cli->Get(k1, &val4);
+  verify(ret4 == KV_SUCCESS);
+  verify(val4 == val3);
+  Passed2();
+}
+
+int RaftLabTest::testTransactionSingleServerShard2() {
+  Init2(4, "Transaction Isolation on Single Server Shard: concurrent transaction aborts. (W before R)");
+  auto sm_cli = config_->GetShardMasterServer(0)->CreateClient();
+  auto kv_cli = ShardKvServer::CreateClient(config_->GetShardMasterServer(0)->sp_log_svr_->commo_);
+
+  string k1 = to_string(1);
+  int r = RandomGenerator::rand(0,10000);
+  string val1 = to_string(r);
+  auto ret1 = kv_cli->Put(k1, val1);
+  verify(ret1 == KV_SUCCESS);
+
+  auto tx_id_1 = kv_cli->TxBegin();
+  string val2;
+  auto ret2 = kv_cli->TxGet(tx_id_1, k1, &val2);
+  verify(ret2 == KV_SUCCESS);
+  verify(val2 == val1);
+
+  auto tx_id_2 = kv_cli->TxBegin();
+  r = RandomGenerator::rand(0,10000);
+  string val3 = to_string(r);
+  auto ret3 = kv_cli->TxPut(tx_id_2, k1, val3);
+  verify(ret3 == KV_SUCCESS);
+
+  auto ret_tx_2 = kv_cli->TxCommit(tx_id_2);
+  verify(ret_tx_2 = TX_COMMITTED);
+
+  auto ret_tx_1 = kv_cli->TxCommit(tx_id_1);
+  verify(ret_tx_1 = TX_ABORTED);
+
+  string val4;
+  auto ret4 = kv_cli->Get(k1, &val4);
+  verify(ret4 == KV_SUCCESS);
+  verify(val3 == val4);
+
+  Passed2();
+}
+
+int RaftLabTest::testTransactionSingleServerShard3() {
+  Init2(5, "Transaction Isolation on Single Server Shard: concurrent transaction commit. (R before W)");
+  auto sm_cli = config_->GetShardMasterServer(0)->CreateClient();
+  auto kv_cli = ShardKvServer::CreateClient(config_->GetShardMasterServer(0)->sp_log_svr_->commo_);
+
+  string k1 = to_string(1);
+  int r = RandomGenerator::rand(0,10000);
+  string val1 = to_string(r);
+  auto ret1 = kv_cli->Put(k1, val1);
+  verify(ret1 == KV_SUCCESS);
+
+  auto tx_id_1 = kv_cli->TxBegin();
+  string val2;
+  auto ret2 = kv_cli->TxGet(tx_id_1, k1, &val2);
+  verify(ret2 == KV_SUCCESS);
+  verify(val2 == val1);
+
+  auto tx_id_2 = kv_cli->TxBegin();
+  r = RandomGenerator::rand(0,10000);
+  string val3 = to_string(r);
+  auto ret3 = kv_cli->TxPut(tx_id_2, k1, val3);
+  verify(ret3 == KV_SUCCESS);
+
+  auto ret_tx_1 = kv_cli->TxCommit(tx_id_1);
+  verify(ret_tx_1 = TX_COMMITTED);
+
+  string val4;
+  auto ret4 = kv_cli->Get(k1, &val4);
+  verify(ret4 == KV_SUCCESS);
+  verify(val1 == val4);
+
+  auto ret_tx_2 = kv_cli->TxCommit(tx_id_2);
+  verify(ret_tx_2 = TX_COMMITTED);
+
+  string val5;
+  auto ret5 = kv_cli->Get(k1, &val5);
+  verify(ret5 == KV_SUCCESS);
+  verify(val3 == val5);
+
+  Passed2();
+}
+
+int RaftLabTest::testTransactionSingleServerShard4() {
+  Init2(6, "Transaction Isolation on Single Server Shard: concurrent transaction commit. (W before W)");
+  auto sm_cli = config_->GetShardMasterServer(0)->CreateClient();
+  auto kv_cli = ShardKvServer::CreateClient(config_->GetShardMasterServer(0)->sp_log_svr_->commo_);
+
+  string k1 = to_string(1);
+  int r = RandomGenerator::rand(0,10000);
+  string val1 = to_string(r);
+  auto ret1 = kv_cli->Put(k1, val1);
+  verify(ret1 == KV_SUCCESS);
+
+  auto tx_id_1 = kv_cli->TxBegin();
+  r = RandomGenerator::rand(0,10000);
+  string val2 = to_string(r);
+  auto ret2 = kv_cli->TxPut(tx_id_1, k1, val2);
+
+  auto tx_id_2 = kv_cli->TxBegin();
+  r = RandomGenerator::rand(0,10000);
+  string val3 = to_string(r);
+  auto ret3 = kv_cli->TxPut(tx_id_2, k1, val3);
+
+  auto ret_tx_1 = kv_cli->TxCommit(tx_id_1);
+  verify(ret_tx_1 = TX_COMMITTED);
+
+  string val4;
+  auto ret4 = kv_cli->Get(k1, &val4);
+  verify(ret4 == KV_SUCCESS);
+  verify(val2 == val4);
+
+  auto ret_tx_2 = kv_cli->TxCommit(tx_id_2);
+  verify(ret_tx_2 = TX_COMMITTED);
+
+  string val5;
+  auto ret5 = kv_cli->Get(k1, &val5);
+  verify(ret5 == KV_SUCCESS);
+  verify(val3 == val5);
+
+  Passed2();
+}
+
+int RaftLabTest::testTransactionCrossServerShard1() {
+  Init2(7, "Transaction Isolation on Cross Server Shard: concurrent transaction aborts. (W before R)");
+  auto sm_cli = config_->GetShardMasterServer(0)->CreateClient();
+  auto kv_cli = ShardKvServer::CreateClient(config_->GetShardMasterServer(0)->sp_log_svr_->commo_);
+
+  string k1 = to_string(1);
+  string k7 = to_string(7);
+
+  int r = RandomGenerator::rand(0,10000);
+  string val1 = to_string(r);
+  auto ret1 = kv_cli->Put(k1, val1);
+  verify(ret1 == KV_SUCCESS);
+
+  r = RandomGenerator::rand(0,10000);
+  string val7 = to_string(r);
+  auto ret2 = kv_cli->Put(k7, val7);
+  verify(ret2 == KV_SUCCESS);
+
+  auto tx_id_1 = kv_cli->TxBegin();
+  string val2;
+  auto ret_tx_1 = kv_cli->TxGet(tx_id_1, k1, &val2);
+  verify(ret_tx_1 == KV_SUCCESS);
+  verify(val2 == val1);
+
+  string val3;
+  ret_tx_1 = kv_cli->TxGet(tx_id_1, k7, &val3);
+  verify(ret_tx_1 == KV_SUCCESS);
+  verify(val3 == val7);
+
+  r = RandomGenerator::rand(0,10000);
+  string val4 = to_string(r);
+  auto ret_tx_2 = kv_cli->Put(k7, val4);
+  verify(ret_tx_2 == KV_SUCCESS);
+
+  ret_tx_1 = kv_cli->TxCommit(tx_id_1);
+  verify(ret_tx_1 = TX_ABORTED);
+
+  Passed2();
+}
+
+int RaftLabTest::testTransactionCrossServerShard2() {
+  Init2(8, "Transaction Isolation on Cross Server Shard: concurrent transaction aborts. (W before R)");
+  auto sm_cli = config_->GetShardMasterServer(0)->CreateClient();
+  auto kv_cli = ShardKvServer::CreateClient(config_->GetShardMasterServer(0)->sp_log_svr_->commo_);
+
+  string k1 = to_string(1);
+  string k7 = to_string(7);
+
+  int r = RandomGenerator::rand(0,10000);
+  string val1 = to_string(r);
+  auto ret1 = kv_cli->Put(k1, val1);
+  Log_info("ret1 %d", ret1);
+  verify(ret1 == KV_SUCCESS);
+
+  r = RandomGenerator::rand(0,10000);
+  string val7 = to_string(r);
+  auto ret2 = kv_cli->Put(k7, val7);
+  verify(ret2 == KV_SUCCESS);
+
+  auto tx_id_1 = kv_cli->TxBegin();
+  string val2;
+  auto ret_tx_1 = kv_cli->TxGet(tx_id_1, k1, &val2);
+  verify(ret_tx_1 == KV_SUCCESS);
+  verify(val2 == val1);
+
+  string val3;
+  ret_tx_1 = kv_cli->TxGet(tx_id_1, k7, &val3);
+  verify(ret_tx_1 == KV_SUCCESS);
+  verify(val3 == val7);
+
+  auto tx_id_2 = kv_cli->TxBegin();
+  r = RandomGenerator::rand(0,10000);
+  string val4 = to_string(r);
+  auto ret_tx_2 = kv_cli->TxPut(tx_id_2, k7, val4);
+
+  ret_tx_2 = kv_cli->TxCommit(tx_id_2);
+  verify(ret_tx_2 = TX_COMMITTED);
+
+  ret_tx_1 = kv_cli->TxCommit(tx_id_1);
+  verify(ret_tx_1 = TX_ABORTED);
+
+  string val5;
+  auto ret3 = kv_cli->Get(k7, &val5);
+  verify(ret3 == KV_SUCCESS);
+  verify(val4 == val5);
+
+  Passed2();
+}
+
+int RaftLabTest::testTransactionCrossServerShard3() {
+  Init2(9, "Transaction Isolation on Cross Server Shard: concurrent transaction commit. (R before W)");
+  auto sm_cli = config_->GetShardMasterServer(0)->CreateClient();
+  auto kv_cli = ShardKvServer::CreateClient(config_->GetShardMasterServer(0)->sp_log_svr_->commo_);
+
+  string k1 = to_string(1);
+  string k7 = to_string(7);
+
+  int r = RandomGenerator::rand(0,10000);
+  string val1 = to_string(r);
+  auto ret1 = kv_cli->Put(k1, val1);
+  verify(ret1 == KV_SUCCESS);
+
+  r = RandomGenerator::rand(0,10000);
+  string val7 = to_string(r);
+  auto ret2 = kv_cli->Put(k7, val7);
+  verify(ret2 == KV_SUCCESS);
+
+  auto tx_id_1 = kv_cli->TxBegin();
+  string val2;
+  auto ret_tx_1 = kv_cli->TxGet(tx_id_1, k1, &val2);
+  verify(ret_tx_1 == KV_SUCCESS);
+  verify(val2 == val1);
+
+  string val3;
+  ret_tx_1 = kv_cli->TxGet(tx_id_1, k7, &val3);
+  verify(ret_tx_1 == KV_SUCCESS);
+  verify(val3 == val7);
+
+  auto tx_id_2 = kv_cli->TxBegin();
+  r = RandomGenerator::rand(0,10000);
+  string val4 = to_string(r);
+  auto ret_tx_2 = kv_cli->TxPut(tx_id_2, k7, val4);
+  verify(ret_tx_2 == KV_SUCCESS);
+
+  ret_tx_1 = kv_cli->TxCommit(tx_id_1);
+  verify(ret_tx_1 = TX_COMMITTED);
+
+  string val5;
+  auto ret3 = kv_cli->Get(k7, &val5);
+  verify(ret3 == KV_SUCCESS);
+  verify(val7 == val5);
+
+  ret_tx_2 = kv_cli->TxCommit(tx_id_2);
+  verify(ret_tx_2 = TX_COMMITTED);
+
+  string val6;
+  auto ret4 = kv_cli->Get(k7, &val6);
+  verify(ret4 == KV_SUCCESS);
+  verify(val4 == val6);
+
+  Passed2();
+}
+
+int RaftLabTest::testTransactionCrossServerShard4() {
+  Init2(10, "Transaction Isolation on Cross Server Shard: concurrent transaction commit. (W before W)");
+  auto sm_cli = config_->GetShardMasterServer(0)->CreateClient();
+  auto kv_cli = ShardKvServer::CreateClient(config_->GetShardMasterServer(0)->sp_log_svr_->commo_);
+
+  string k1 = to_string(1);
+  string k7 = to_string(7);
+
+  int r = RandomGenerator::rand(0,10000);
+  string val1 = to_string(r);
+  auto ret1 = kv_cli->Put(k1, val1);
+  verify(ret1 == KV_SUCCESS);
+
+  r = RandomGenerator::rand(0,10000);
+  string val7 = to_string(r);
+  auto ret2 = kv_cli->Put(k7, val7);
+  verify(ret2 == KV_SUCCESS);
+
+  auto tx_id_1 = kv_cli->TxBegin();
+  r = RandomGenerator::rand(0,10000);
+  string val2 = to_string(r);
+  auto ret_tx_1 = kv_cli->TxPut(tx_id_1, k1, val2);
+  verify(ret_tx_1 == KV_SUCCESS);
+
+  r = RandomGenerator::rand(0,10000);
+  string val3 = to_string(r);
+  ret_tx_1 = kv_cli->TxPut(tx_id_1, k7, val3);
+  verify(ret_tx_1 == KV_SUCCESS);
+
+  auto tx_id_2 = kv_cli->TxBegin();
+  r = RandomGenerator::rand(0,10000);
+  string val4 = to_string(r);
+  auto ret_tx_2 = kv_cli->TxPut(tx_id_2, k7, val4);
+  verify(ret_tx_2 == KV_SUCCESS);
+
+  ret_tx_1 = kv_cli->TxCommit(tx_id_1);
+  verify(ret_tx_1 = TX_COMMITTED);
+
+  string val5;
+  auto ret3 = kv_cli->Get(k7, &val5);
+  verify(ret3 == KV_SUCCESS);
+  verify(val3 == val5);
+
+  ret_tx_2 = kv_cli->TxCommit(tx_id_2);
+  verify(ret_tx_2 = TX_COMMITTED);
+
+  string val6;
+  auto ret4 = kv_cli->Get(k7, &val6);
+  verify(ret4 == KV_SUCCESS);
+  verify(val4 == val6);
+
+  Passed2();
+}
+
+int RaftLabTest::testTransactionConcurrency1() {
+  Init2(11, "Transaction Concurrency - multiple concurrent commits, only one should succeed");
+  auto sm_cli = config_->GetShardMasterServer(0)->CreateClient();
+  auto kv_cli = ShardKvServer::CreateClient(config_->GetShardMasterServer(0)->sp_log_svr_->commo_);
+
+  for (int i=0; i<10; i++) {
+    string key1 = to_string(1);
+    string key2 = to_string(11);
+    string key3 = to_string(111);
+
+    // setup
+    int r = RandomGenerator::rand(0,10000);
+    string val1 = to_string(r);
+    auto ret = kv_cli->Put(key1, val1);
+    verify(ret == KV_SUCCESS);
+    r = RandomGenerator::rand(0,10000);
+    string val2 = to_string(r);
+    ret = kv_cli->Put(key2, val2);
+    verify(ret == KV_SUCCESS);
+    r = RandomGenerator::rand(0,10000);
+    string val3 = to_string(r);
+    ret = kv_cli->Put(key3, val3);
+    verify(ret == KV_SUCCESS);
+
+    auto tx_id_1 = kv_cli->TxBegin(); 
+    r = RandomGenerator::rand(0,10000);
+    string val1_tx1 = to_string(r);
+    auto ret_tx_1 = kv_cli->TxPut(tx_id_1, key1, val1_tx1);
+    verify(ret_tx_1 == KV_SUCCESS);
+    r = RandomGenerator::rand(0,10000);
+    val1_tx1 = to_string(r);
+    ret_tx_1 = kv_cli->TxPut(tx_id_1, key3, val1_tx1);
+    verify(ret_tx_1 == KV_SUCCESS);
+    string val2_tx1;
+    ret_tx_1 = kv_cli->TxGet(tx_id_1, key2, &val2_tx1);
+    verify(ret_tx_1 == KV_SUCCESS);
+    verify(val2_tx1 == val2);
+
+    auto tx_id_2 = kv_cli->TxBegin();
+    r = RandomGenerator::rand(0,10000);
+    string val2_tx2 = to_string(r);
+    auto ret_tx_2 = kv_cli->TxPut(tx_id_2, key2, val2_tx2);
+    verify(ret_tx_2 == KV_SUCCESS);
+    r = RandomGenerator::rand(0,10000);
+    val2_tx2 = to_string(r);
+    ret_tx_2 = kv_cli->TxPut(tx_id_2, key1, val2_tx2);
+    verify(ret_tx_2 == KV_SUCCESS);
+    string val3_tx2;
+    ret_tx_2 = kv_cli->TxGet(tx_id_2, key3, &val3_tx2);
+    verify(ret_tx_2 == KV_SUCCESS);
+    verify(val3_tx2 == val3);
+
+    auto tx_id_3 = kv_cli->TxBegin();
+    r = RandomGenerator::rand(0,10000);
+    string val3_tx3 = to_string(r);
+    auto ret_tx_3 = kv_cli->TxPut(tx_id_3, key3, val3_tx3);
+    verify(ret_tx_3 == KV_SUCCESS);
+    r = RandomGenerator::rand(0,10000);
+    val3_tx3 = to_string(r);
+    ret_tx_3 = kv_cli->TxPut(tx_id_3, key2, val3_tx3);
+    verify(ret_tx_3 == KV_SUCCESS);
+    string val1_tx3;
+    ret_tx_3 = kv_cli->TxGet(tx_id_3, key1, &val1_tx3);
+    verify(ret_tx_3 == KV_SUCCESS);
+    verify(val1_tx3 == val1);
+
+    // concurrently commit all
+    vector<thread*> threads;
+    vector<uint64_t> tx_ids = {tx_id_1, tx_id_2, tx_id_3};
+    threads.resize(3, nullptr);
+    atomic<int> done{0};
+    atomic<int> success{0};
+    for (int i = 0; i < 3; i++) {
+      threads[i] = new thread([this, i, &done, &success, tx_ids, kv_cli](){
+          auto ret = kv_cli->TxCommit(tx_ids[i]);
+          if (ret == TX_COMMITTED) {
+              success.fetch_add(1);  
+          }
+          done.fetch_add(1);
+      });
+    }
+    auto t1 = Time::now();
+    while (true) {
+      std::this_thread::sleep_for(100ms);
+      if (done.load() == 3) {
+        break;
+      }  
+      if (Time::now() - t1 > 100000000) {
+        Log_fatal("run out of time to finish");
+      }
+    }
+    verify(success.load() == 1);
+  }
+
+  Passed2();
+}
+
+int RaftLabTest::testTransactionConcurrency2() {
+  Init2(12, "Transaction Concurrency - multiple concurrent commits, zero or one should succeed");
+  auto sm_cli = config_->GetShardMasterServer(0)->CreateClient();
+  auto kv_cli = ShardKvServer::CreateClient(config_->GetShardMasterServer(0)->sp_log_svr_->commo_);
+
+  for (int i=0; i<10; i++) {
+    string key1 = to_string(1);
+    string key2 = to_string(7);
+
+
+    // setup
+    int r = RandomGenerator::rand(0,10000);
+    string val1 = to_string(r);
+    auto ret = kv_cli->Put(key1, val1);
+    verify(ret == KV_SUCCESS);
+    r = RandomGenerator::rand(0,10000);
+    string val2 = to_string(r);
+    ret = kv_cli->Put(key2, val2);
+    verify(ret == KV_SUCCESS);
+
+    auto tx_id_1 = kv_cli->TxBegin(); 
+    r = RandomGenerator::rand(0,10000);
+    string val1_tx1 = to_string(r);
+    auto ret_tx_1 = kv_cli->TxPut(tx_id_1, key1, val1_tx1);
+    verify(ret_tx_1 == KV_SUCCESS);
+    string val2_tx1;
+    ret_tx_1 = kv_cli->TxGet(tx_id_1, key2, &val2_tx1);
+    verify(ret_tx_1 == KV_SUCCESS);
+    verify(val2_tx1 == val2);
+
+    auto tx_id_2 = kv_cli->TxBegin();
+    r = RandomGenerator::rand(0,10000);
+    string val2_tx2 = to_string(r);
+    auto ret_tx_2 = kv_cli->TxPut(tx_id_2, key2, val2_tx2);
+    verify(ret_tx_2 == KV_SUCCESS);
+    string val1_tx2;
+    ret_tx_2 = kv_cli->TxGet(tx_id_2, key1, &val1_tx2);
+    verify(ret_tx_2 == KV_SUCCESS);
+    verify(val1_tx2 == val1);
+
+    // concurrently commit all
+    vector<thread*> threads;
+    vector<uint64_t> tx_ids = {tx_id_1, tx_id_2};
+    threads.resize(2, nullptr);
+    atomic<int> done{0};
+    atomic<int> success{0};
+    for (int i = 0; i < 2; i++) {
+      threads[i] = new thread([this, i, &done, &success, tx_ids, kv_cli](){
+          auto ret = kv_cli->TxCommit(tx_ids[i]);
+          if (ret == TX_COMMITTED) {
+              success.fetch_add(1);  
+          }
+          done.fetch_add(1);
+      });
+    }
+    auto t1 = Time::now();
+    while (true) {
+      std::this_thread::sleep_for(100ms);
+      if (done.load() == 2) {
+        break;
+      }  
+      if (Time::now() - t1 > 100000000) {
+        Log_fatal("run out of time to finish");
+      }
+    }
+    verify(success.load() <= 1);
+  }
+
+  Passed2();
+}
 
 void RaftLabTest::checkShardBasic(const map<uint32_t, vector<uint32_t>>& group_servers) {
   auto cli = config_->GetShardMasterServer(0)->CreateClient();

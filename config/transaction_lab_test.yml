@@ -46,4 +46,4 @@ lab:
   raft: false
   kv: false  
   shard: true
-  transaction: false
+  transaction: true

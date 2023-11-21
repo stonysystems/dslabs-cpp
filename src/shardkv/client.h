@@ -20,6 +20,12 @@ class ShardKvClient {
   int Get(const string& k, string* v);
   int Append(const string& k, const string& v);
 
+  uint64_t TxBegin();
+  int TxPut(const uint64_t tx_id, const string& k, const string& v);
+  int TxGet(const uint64_t tx_id, const string& k, string* v);
+  int TxCommit(const uint64_t tx_id);
+  int TxAbort(const uint64_t tx_id);
+  
   uint64_t GetNextOpId() {
     verify(cli_id_ != UINT32_MAX);
     uint64_t ret = cli_id_;

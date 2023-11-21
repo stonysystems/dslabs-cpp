@@ -10,6 +10,10 @@
 namespace janus {
 class RaftServer;
 
+const int TX_COMMITTED = 101;
+const int TX_ABORTED = 102;
+const int TX_NOTFOUND = 103;
+
 class ShardKvClient;
 class ShardKvServer {
  public:
@@ -42,6 +46,7 @@ class ShardKvServer {
 
   void OnNextCommand(Marshallable& m);
 
+  void Setup();
   static shared_ptr<ShardKvClient> CreateClient(Communicator* comm);
 };
 

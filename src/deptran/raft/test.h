@@ -19,10 +19,12 @@ class RaftLabTest {
  public:
   RaftLabTest(RaftTestConfig *config) : config_(config), index_(1) {}
   int Run(void);
+  int RunTransaction(void);
   int RunShard(void);
   int RunKv(void);
   int RunRaft(void);
   int GenericKvTest(int n_cli, bool unreliable, uint64_t timeout=3000000, int leader = 0,int maxraftstate = -1);
+  void DistributeShards();
   void Cleanup(void);
 
  private:
@@ -64,6 +66,19 @@ class RaftLabTest {
   int testShardMinimalTransferLeave(void);
   int testShardStaticShardsPut();
   int testShardJoinLeaveAppend();
+
+  int testTransactionAtomiticyCommit();
+  int testTransactionAtomiticyAbort();
+  int testTransactionSingleServerShard1();
+  int testTransactionSingleServerShard2();
+  int testTransactionSingleServerShard3();
+  int testTransactionSingleServerShard4();
+  int testTransactionCrossServerShard1();
+  int testTransactionCrossServerShard2();
+  int testTransactionCrossServerShard3();
+  int testTransactionCrossServerShard4();
+  int testTransactionConcurrency1();
+  int testTransactionConcurrency2();
 
   void checkShardBasic(const map<uint32_t, vector<uint32_t>>& group_servers={});
 
