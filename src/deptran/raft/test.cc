@@ -373,7 +373,7 @@ int RaftLabTest::testTransactionSingleServerShard1() {
   verify(ret3 == KV_SUCCESS);
 
   auto ret_tx = kv_cli->TxCommit(tx_id_1);
-  verify(ret_tx = TX_ABORTED);
+  verify(ret_tx == TX_ABORTED);
 
   string val4;
   auto ret4 = kv_cli->Get(k1, &val4);
@@ -406,11 +406,11 @@ int RaftLabTest::testTransactionSingleServerShard2() {
   verify(ret3 == KV_SUCCESS);
 
   auto ret_tx_2 = kv_cli->TxCommit(tx_id_2);
-  verify(ret_tx_2 = TX_COMMITTED);
+  verify(ret_tx_2 == TX_COMMITTED);
 
   auto ret_tx_1 = kv_cli->TxCommit(tx_id_1);
-  verify(ret_tx_1 = TX_ABORTED);
-
+  verify(ret_tx_1 == TX_ABORTED);
+  
   string val4;
   auto ret4 = kv_cli->Get(k1, &val4);
   verify(ret4 == KV_SUCCESS);
@@ -443,7 +443,7 @@ int RaftLabTest::testTransactionSingleServerShard3() {
   verify(ret3 == KV_SUCCESS);
 
   auto ret_tx_1 = kv_cli->TxCommit(tx_id_1);
-  verify(ret_tx_1 = TX_COMMITTED);
+  verify(ret_tx_1 == TX_COMMITTED);
 
   string val4;
   auto ret4 = kv_cli->Get(k1, &val4);
@@ -451,7 +451,7 @@ int RaftLabTest::testTransactionSingleServerShard3() {
   verify(val1 == val4);
 
   auto ret_tx_2 = kv_cli->TxCommit(tx_id_2);
-  verify(ret_tx_2 = TX_COMMITTED);
+  verify(ret_tx_2 == TX_COMMITTED);
 
   string val5;
   auto ret5 = kv_cli->Get(k1, &val5);
@@ -483,7 +483,7 @@ int RaftLabTest::testTransactionSingleServerShard4() {
   auto ret3 = kv_cli->TxPut(tx_id_2, k1, val3);
 
   auto ret_tx_1 = kv_cli->TxCommit(tx_id_1);
-  verify(ret_tx_1 = TX_COMMITTED);
+  verify(ret_tx_1 == TX_COMMITTED);
 
   string val4;
   auto ret4 = kv_cli->Get(k1, &val4);
@@ -491,7 +491,7 @@ int RaftLabTest::testTransactionSingleServerShard4() {
   verify(val2 == val4);
 
   auto ret_tx_2 = kv_cli->TxCommit(tx_id_2);
-  verify(ret_tx_2 = TX_COMMITTED);
+  verify(ret_tx_2 == TX_COMMITTED);
 
   string val5;
   auto ret5 = kv_cli->Get(k1, &val5);
@@ -536,7 +536,7 @@ int RaftLabTest::testTransactionCrossServerShard1() {
   verify(ret_tx_2 == KV_SUCCESS);
 
   ret_tx_1 = kv_cli->TxCommit(tx_id_1);
-  verify(ret_tx_1 = TX_ABORTED);
+  verify(ret_tx_1 == TX_ABORTED);
 
   Passed2();
 }
@@ -552,7 +552,6 @@ int RaftLabTest::testTransactionCrossServerShard2() {
   int r = RandomGenerator::rand(0,10000);
   string val1 = to_string(r);
   auto ret1 = kv_cli->Put(k1, val1);
-  Log_info("ret1 %d", ret1);
   verify(ret1 == KV_SUCCESS);
 
   r = RandomGenerator::rand(0,10000);
@@ -577,11 +576,11 @@ int RaftLabTest::testTransactionCrossServerShard2() {
   auto ret_tx_2 = kv_cli->TxPut(tx_id_2, k7, val4);
 
   ret_tx_2 = kv_cli->TxCommit(tx_id_2);
-  verify(ret_tx_2 = TX_COMMITTED);
+  verify(ret_tx_2 == TX_COMMITTED);
 
   ret_tx_1 = kv_cli->TxCommit(tx_id_1);
-  verify(ret_tx_1 = TX_ABORTED);
-
+  verify(ret_tx_1 == TX_ABORTED);
+  
   string val5;
   auto ret3 = kv_cli->Get(k7, &val5);
   verify(ret3 == KV_SUCCESS);
@@ -626,7 +625,7 @@ int RaftLabTest::testTransactionCrossServerShard3() {
   verify(ret_tx_2 == KV_SUCCESS);
 
   ret_tx_1 = kv_cli->TxCommit(tx_id_1);
-  verify(ret_tx_1 = TX_COMMITTED);
+  verify(ret_tx_1 == TX_COMMITTED);
 
   string val5;
   auto ret3 = kv_cli->Get(k7, &val5);
@@ -634,7 +633,7 @@ int RaftLabTest::testTransactionCrossServerShard3() {
   verify(val7 == val5);
 
   ret_tx_2 = kv_cli->TxCommit(tx_id_2);
-  verify(ret_tx_2 = TX_COMMITTED);
+  verify(ret_tx_2 == TX_COMMITTED);
 
   string val6;
   auto ret4 = kv_cli->Get(k7, &val6);
@@ -680,7 +679,7 @@ int RaftLabTest::testTransactionCrossServerShard4() {
   verify(ret_tx_2 == KV_SUCCESS);
 
   ret_tx_1 = kv_cli->TxCommit(tx_id_1);
-  verify(ret_tx_1 = TX_COMMITTED);
+  verify(ret_tx_1 == TX_COMMITTED);
 
   string val5;
   auto ret3 = kv_cli->Get(k7, &val5);
@@ -688,7 +687,7 @@ int RaftLabTest::testTransactionCrossServerShard4() {
   verify(val3 == val5);
 
   ret_tx_2 = kv_cli->TxCommit(tx_id_2);
-  verify(ret_tx_2 = TX_COMMITTED);
+  verify(ret_tx_2 == TX_COMMITTED);
 
   string val6;
   auto ret4 = kv_cli->Get(k7, &val6);
@@ -804,7 +803,7 @@ int RaftLabTest::testTransactionConcurrency2() {
     string key1 = to_string(1);
     string key2 = to_string(7);
 
-
+   
     // setup
     int r = RandomGenerator::rand(0,10000);
     string val1 = to_string(r);
