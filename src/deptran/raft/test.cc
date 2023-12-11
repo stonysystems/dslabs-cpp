@@ -905,7 +905,7 @@ int RaftLabTest::testTransactionWound() {
 }
 
 int RaftLabTest::testTransactionWait() {
-  Init2(3, "Transaction Wound Wait : TxA(R K) -> TxB(W K) -> TxB(Commit) —> B waits for A to commit");
+  Init2(4, "Transaction Wound Wait : TxA(R K) -> TxB(W K) -> TxB(Commit) —> B waits for A to commit");
   auto sm_cli = config_->GetShardMasterServer(0)->CreateClient();
   auto kv_cli_1 = ShardKvServer::CreateClient(config_->GetShardMasterServer(0)->sp_log_svr_->commo_);
   auto kv_cli_2 = ShardKvServer::CreateClient(config_->GetShardMasterServer(0)->sp_log_svr_->commo_);
