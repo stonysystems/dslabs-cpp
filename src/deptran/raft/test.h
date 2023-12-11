@@ -80,6 +80,9 @@ class RaftLabTest {
   int testTransactionConcurrency1();
   int testTransactionConcurrency2();
 
+  int testTransactionWound();
+  int testTransactionWait();
+
   void checkShardBasic(const map<uint32_t, vector<uint32_t>>& group_servers={});
 
   void wait(uint64_t microseconds);

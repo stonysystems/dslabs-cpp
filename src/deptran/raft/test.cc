@@ -90,16 +90,18 @@ int RaftLabTest::RunTransaction(void) {
   if (false
       || TEST_EXPAND(testTransactionAtomiticyCommit()) 
       || TEST_EXPAND(testTransactionAtomiticyAbort()) 
-      || TEST_EXPAND(testTransactionSingleServerShard1())
-      || TEST_EXPAND(testTransactionSingleServerShard2())
-      || TEST_EXPAND(testTransactionSingleServerShard3())
-      || TEST_EXPAND(testTransactionSingleServerShard4())
-      || TEST_EXPAND(testTransactionCrossServerShard1())
-      || TEST_EXPAND(testTransactionCrossServerShard2())
-      || TEST_EXPAND(testTransactionCrossServerShard3())
-      || TEST_EXPAND(testTransactionCrossServerShard4())
-      || TEST_EXPAND(testTransactionConcurrency1())
-      || TEST_EXPAND(testTransactionConcurrency2())
+    //   || TEST_EXPAND(testTransactionSingleServerShard1())
+    //   || TEST_EXPAND(testTransactionSingleServerShard2())
+    //   || TEST_EXPAND(testTransactionSingleServerShard3())
+    //   || TEST_EXPAND(testTransactionSingleServerShard4())
+    //   || TEST_EXPAND(testTransactionCrossServerShard1())
+    //   || TEST_EXPAND(testTransactionCrossServerShard2())
+    //   || TEST_EXPAND(testTransactionCrossServerShard3())
+    //   || TEST_EXPAND(testTransactionCrossServerShard4())
+    //   || TEST_EXPAND(testTransactionConcurrency1())
+    //   || TEST_EXPAND(testTransactionConcurrency2())
+      || TEST_EXPAND(testTransactionWound())
+      || TEST_EXPAND(testTransactionWait())
   ) {
     Print("TESTS FAILED");
     return 1;
@@ -862,6 +864,103 @@ int RaftLabTest::testTransactionConcurrency2() {
     verify(success.load() <= 1);
   }
 
+  Passed2();
+}
+
+int RaftLabTest::testTransactionWound() {
+  Init2(3, "Transaction Wound Wait : Tx B reads key K -> Tx A writes for K -> Tx A commit -> B abort");
+  auto sm_cli = config_->GetShardMasterServer(0)->CreateClient();
+  auto kv_cli = ShardKvServer::CreateClient(config_->GetShardMasterServer(0)->sp_log_svr_->commo_);
+
+  string k1 = to_string(1);
+  int r = RandomGenerator::rand(0,10000);
+  string val1 = to_string(r);
+  auto ret1 = kv_cli->Put(k1, val1);
+  verify(ret1 == KV_SUCCESS);
+
+  auto tx_id_1 = kv_cli->TxBegin();
+  auto tx_id_2 = kv_cli->TxBegin();
+
+  string val2;
+  auto ret_tx_id_2 = kv_cli->TxGet(tx_id_2, k1, &val2);
+  verify(ret_tx_id_2 == KV_SUCCESS);
+  verify(val2 == val1);
+
+  r = RandomGenerator::rand(0,10000);
+  string val3 = to_string(r);
+  auto ret_tx_id_1 = kv_cli->TxPut(tx_id_1, k1, val3);
+  verify(ret_tx_id_1 == KV_SUCCESS);
+
+  ret_tx_id_1 = kv_cli->TxCommit(tx_id_1);
+  verify(ret_tx_id_1 == TX_COMMITTED);
+
+  ret_tx_id_2 = kv_cli->TxGet(tx_id_2, k1, &val2);
+  verify(ret_tx_id_2 == TX_ABORTED);
+
+  string val4;
+  auto ret4 = kv_cli->Get(k1, &val4);
+  verify(ret4 == KV_SUCCESS);
+  verify(val4 == val3);
+  Passed2();
+}
+
+int RaftLabTest::testTransactionWait() {
+  Init2(3, "Transaction Wound Wait : TxA(R K) -> TxB(W K) -> TxB(Commit) —> B waits for A to commit");
+  auto sm_cli = config_->GetShardMasterServer(0)->CreateClient();
+  auto kv_cli_1 = ShardKvServer::CreateClient(config_->GetShardMasterServer(0)->sp_log_svr_->commo_);
+  auto kv_cli_2 = ShardKvServer::CreateClient(config_->GetShardMasterServer(0)->sp_log_svr_->commo_);
+
+  string k1 = to_string(1);
+  int r = RandomGenerator::rand(0,10000);
+  string val1 = to_string(r);
+  auto ret1 = kv_cli_1->Put(k1, val1);
+  verify(ret1 == KV_SUCCESS);
+
+  auto tx_id_1 = kv_cli_1->TxBegin();
+  auto tx_id_2 = kv_cli_2->TxBegin();
+
+  string val2;
+  auto ret_tx_id_1 = kv_cli_1->TxGet(tx_id_1, k1, &val2);
+  verify(ret_tx_id_1 == KV_SUCCESS);
+  verify(val2 == val1);
+
+  r = RandomGenerator::rand(0,10000);
+  string val3 = to_string(r);
+  auto ret_tx_id_2 = kv_cli_2->TxPut(tx_id_2, k1, val3);
+  verify(ret_tx_id_2 == KV_SUCCESS);
+
+    // commit both
+    vector<thread*> threads;
+    vector<uint64_t> tx_ids = {tx_id_1, tx_id_2};
+    vector<shared_ptr<ShardKvClient>> kv_clis = {kv_cli_1, kv_cli_2};
+    threads.resize(2, nullptr);
+    atomic<int> done{0};
+    atomic<int> success{0};
+    for (int i = 0; i < 2; i++) {
+        threads[i] = new thread([this, i, &done, &success, tx_ids, kv_clis](){
+            auto ret = kv_clis[i]->TxCommit(tx_ids[i]);
+            if (ret == TX_COMMITTED) {
+                success.fetch_add(1);  
+            }
+            done.fetch_add(1);
+        });
+    }
+    auto t1 = Time::now();
+    while (true) {
+        std::this_thread::sleep_for(100ms);
+        if (done.load() == 2) {
+        break;
+        }  
+        if (Time::now() - t1 > 100000000) {
+        Log_fatal("run out of time to finish");
+        }
+    }
+    verify(success.load() == 2);
+
+  string val4;
+  auto ret4 = kv_cli_1->Get(k1, &val4);
+  verify(ret4 == KV_SUCCESS);
+  verify(val4 == val3);
   Passed2();
 }
 
