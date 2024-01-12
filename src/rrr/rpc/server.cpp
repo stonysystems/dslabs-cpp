@@ -557,8 +557,10 @@ ServerListener::ServerListener(Server* server, string addr) {
     Log_error("rrr::Server: bind(): %s", strerror(errno));
     freeaddrinfo(result);
   } else {
-    p_gai_result_ = result;
-    p_svr_addr_ = rp;
+    // p_gai_result_ = result;
+    // p_svr_addr_ = rp;
+    p_gai_result_.reset(result);
+    p_svr_addr_.reset(rp);
   }
 #endif
 
@@ -671,7 +673,7 @@ int Server::reg(i32 rpc_id, const std::function<void(Request*, ServerConnection*
     return 0;
 }
 
-void Server::unreg(i32 rpc_id) {
+void Server::unreg(i32 rpc_id)  {
     handlers_.erase(rpc_id);
 }
 

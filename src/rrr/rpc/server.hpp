@@ -13,6 +13,9 @@
 #include "reactor/epoll_wrapper.h"
 #include "reactor/reactor.h"
 
+#include "utils/borrow.h"
+
+using namespace borrow;
 // for getaddrinfo() used in Server::start()
 //struct addrinfo;
 
@@ -35,6 +38,9 @@ struct Request {
 
 class Service {
 public:
+    own_ptr<Service> svc_ptr_;
+
+
     virtual ~Service() {}
     virtual int __reg_to__(Server*) = 0;
 };
@@ -46,8 +52,10 @@ class ServerListener: public Pollable {
   Server* server_;
   // cannot use smart pointers for memory management because this pointer
   // needs to be freed by freeaddrinfo.
-  struct addrinfo* p_gai_result_{nullptr};
-  struct addrinfo* p_svr_addr_{nullptr};
+  // struct addrinfo* p_gai_result_{nullptr};
+  // struct addrinfo* p_svr_addr_{nullptr};
+  struct own_ptr<addrinfo> p_gai_result_;
+  struct own_ptr<addrinfo> p_svr_addr_;
 
   int server_sock_{0};
   int poll_mode() {
@@ -70,11 +78,13 @@ class ServerListener: public Pollable {
   ServerListener(Server* s, std::string addr);
 //protected:
   virtual ~ServerListener() {
-    if (p_gai_result_ != nullptr) {
-      freeaddrinfo(p_gai_result_);
-      p_gai_result_ = nullptr;
-      p_svr_addr_ = nullptr;
-    }
+    // if (p_gai_result_ != nullptr) {
+    //   freeaddrinfo(p_gai_result_);
+    //   p_gai_result_ = nullptr;
+    //   p_svr_addr_ = nullptr;
+    // }
+    p_gai_result_.reset(nullptr);
+    p_svr_addr_.reset(nullptr);
   };
 };
 
@@ -223,7 +233,10 @@ class DeferredReply: public NoCopy {
 class Server: public NoCopy {
     friend class ServerConnection;
  public:
-    std::unordered_map<i32, std::function<void(Request*, ServerConnection*)>> handlers_;
+
+    own_ptr<Server> svr_ptr_;
+
+   std::unordered_map<i32, std::function<void(Request*, ServerConnection*)>> handlers_;
     PollMgr* pollmgr_;
     ThreadPool* threadpool_;
     int server_sock_;
@@ -252,6 +265,7 @@ public:
     int start(const char* bind_addr);
 
     int reg(Service* svc) {
+        //const_ptr<Server> const_svr_ptr_ = borrow_const(svr_ptr_);
         return svc->__reg_to__(this);
     }
 
@@ -289,7 +303,7 @@ public:
         return 0;
     }
 
-    void unreg(i32 rpc_id);
+    void unreg(i32 rpc_id)  ;
 };
 
 } // namespace rrr
