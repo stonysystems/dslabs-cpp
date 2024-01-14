@@ -30,8 +30,8 @@ static PyObject* _pyrpc_init_server(PyObject* self, PyObject* args) {
     ThreadPool* thrpool = new ThreadPool(n_threads);
     Log_debug("created rrr::Server with %d worker threads", n_threads);
     Server* svr = new Server(poll_mgr, thrpool);
-    thrpool->release();
-    poll_mgr->release();
+    //thrpool->release();
+    //poll_mgr->release();
     return Py_BuildValue("k", svr);
 }
 

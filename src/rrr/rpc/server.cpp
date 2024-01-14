@@ -167,6 +167,8 @@ bool ServerConnection::handle_read() {
             // consume the packet size
             verify(in_.read(&packet_size, sizeof(i32)) == sizeof(i32));
 
+            //own_ptr<Request> req;
+
             Request* req = new Request;
             verify(req->m.read_from_marshal(in_, packet_size) == (size_t) packet_size);
 
@@ -186,12 +188,13 @@ bool ServerConnection::handle_read() {
 #endif // RPC_STATISTICS
 
     for (auto& req: complete_requests) {
+        //mut_ptr<Request> mreq = borrow_mut(req);
 
         if (req->m.content_size() < sizeof(i32)) {
             // rpc id not provided
             begin_reply(req, EINVAL);
             end_reply();
-            delete req;
+            //delete req;
             continue;
         }
 
@@ -209,7 +212,7 @@ bool ServerConnection::handle_read() {
             auto x = dynamic_pointer_cast<ServerConnection>(shared_from_this());
             auto y = it->second;
 						//Log_info("CreateRunning: %x", rpc_id);
-            Coroutine::CreateRun([y, req, x, this, rpc_id] () {
+            Coroutine::CreateRun([y, req, x, this, rpc_id] () { // capture creq by reference
 //              verify(x);
               verify(x->connected());
 
@@ -263,7 +266,7 @@ bool ServerConnection::handle_read() {
             }
             begin_reply(req, ENOENT);
             end_reply();
-            delete req;
+            //delete req;
         }
     }
   // This is a workaround, the Loop call should really happen
@@ -339,9 +342,9 @@ Server::Server(PollMgr* pollmgr /* =... */, ThreadPool* thrpool /* =? */)
     memset(&loop_th_, 0, sizeof(loop_th_));
 
     if (pollmgr == nullptr) {
-        pollmgr_ = new PollMgr;
+        pollmgr_ .reset(new PollMgr);
     } else {
-        pollmgr_ = (PollMgr *) pollmgr->ref_copy();
+        pollmgr_.reset(pollmgr);
     }
 
 //    if (thrpool == nullptr) {
@@ -391,7 +394,7 @@ Server::~Server() {
     verify(sconns_ctr_.peek_next() == 0);
 
 //    threadpool_->release();
-    pollmgr_->release();
+//    pollmgr_->release();
 
     //Log_debug("rrr::Server: destroyed");
 }

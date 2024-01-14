@@ -109,7 +109,7 @@ class Reactor {
   }
 };
 
-class PollMgr: public rrr::RefCounted {
+class PollMgr {
  public:
     class PollThread;
 
@@ -117,17 +117,17 @@ class PollMgr: public rrr::RefCounted {
     const int n_threads_;
     bool need_disk_ = false;
 
-protected:
+// protected:
 
-    // RefCounted object uses protected dtor to prevent accidental deletion
-    ~PollMgr();
+//     // RefCounted object uses protected dtor to prevent accidental deletion
+//     ~PollMgr();
 
 public:
 
     PollMgr(int n_threads = 1, bool need_disk=false);
     PollMgr(const PollMgr&) = delete;
     PollMgr& operator=(const PollMgr&) = delete;
-
+    ~PollMgr();
     void add(shared_ptr<Pollable>);
     void remove(shared_ptr<Pollable>);
     void update_mode(shared_ptr<Pollable>, int new_mode);

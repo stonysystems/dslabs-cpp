@@ -7,6 +7,14 @@
 #include "reactor/epoll_wrapper.h"
 #include "reactor/reactor.h"
 
+
+#ifndef __BORROW_H__
+#define __BORROW_H__
+#include "utils/borrow.h"
+#endif
+
+using namespace borrow;
+
 namespace rrr {
 
 class Future;
@@ -118,7 +126,7 @@ public:
     /**
      * NOT a refcopy! This is intended to avoid circular reference, which prevents everything from being released correctly.
      */
-    PollMgr* pollmgr_;
+    own_ptr<PollMgr> pollmgr_;
     
     std::string host_;
     int sock_;
@@ -159,7 +167,13 @@ public:
      invalidate_pending_futures();
    }
 
-   Client(PollMgr* pollmgr): pollmgr_(pollmgr), sock_(-1), status_(NEW), bmark_(nullptr) { }
+   Client(PollMgr* pollmgr): sock_(-1), status_(NEW), bmark_(nullptr) {
+    if (pollmgr == nullptr) {
+        pollmgr_.reset(new PollMgr);
+    } else {
+        pollmgr_.reset((PollMgr*) pollmgr);
+    }
+   }
 
     /**
      * Start a new request. Must be paired with end_request(), even if nullptr returned.
@@ -220,7 +234,7 @@ class ClientPool: public NoCopy {
     rrr::Rand rand_;
 
     // refcopy
-    rrr::PollMgr* pollmgr_;
+    own_ptr<rrr::PollMgr> pollmgr_;
 
     // guard cache_
     SpinLock l_;

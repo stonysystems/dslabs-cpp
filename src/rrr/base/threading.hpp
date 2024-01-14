@@ -250,7 +250,7 @@ public:
     }
 };
 
-class ThreadPool: public RefCounted {
+class ThreadPool {
     int n_;
     Counter round_robin_;
     pthread_t* th_;
@@ -260,14 +260,14 @@ class ThreadPool: public RefCounted {
     static void* start_thread_pool(void*);
     void run_thread(int id_in_pool);
 
-protected:
-    ~ThreadPool();
+// protected:
+//     ~ThreadPool();
 
 public:
     ThreadPool(int n = 1 /*get_ncpu() * 2*/);
     ThreadPool(const ThreadPool&) = delete;
     ThreadPool& operator=(const ThreadPool&) = delete;
-
+    ~ThreadPool();
     // return 0 when queuing ok, otherwise EPERM
     int run_async(const std::function<void()>&);
 };

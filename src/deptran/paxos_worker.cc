@@ -133,8 +133,8 @@ void PaxosWorker::WaitForShutdown() {
     scsi_->wait_for_shutdown();
     delete hb_rpc_server_;
     delete scsi_;
-    svr_hb_poll_mgr_g->release();
-    hb_thread_pool_g->release();
+    // svr_hb_poll_mgr_g->release();
+    // hb_thread_pool_g->release();
 
     for (auto service : services_) {
       if (DepTranServiceImpl* s = dynamic_cast<DepTranServiceImpl*>(service)) {
@@ -159,7 +159,7 @@ void PaxosWorker::ShutDown() {
   for (auto service : services_) {
     delete service;
   }
-  thread_pool_g->release();
+//  thread_pool_g->release();
   for (auto c : created_coordinators_) {
     delete c;
   }

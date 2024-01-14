@@ -189,10 +189,10 @@ void ServerWorker::WaitForShutdown() {
     scsi_->wait_for_shutdown();
     delete hb_rpc_server_;
     delete scsi_;
-    if (svr_hb_poll_mgr_g != svr_poll_mgr_)
-      svr_hb_poll_mgr_g->release();
-    if (hb_thread_pool_g != svr_thread_pool_)
-      hb_thread_pool_g->release();
+    // if (svr_hb_poll_mgr_g != svr_poll_mgr_)
+    //   svr_hb_poll_mgr_g->release();
+    // if (hb_thread_pool_g != svr_thread_pool_)
+    //   hb_thread_pool_g->release();
 
     for (auto service : services_) {
       if (DepTranServiceImpl* s = dynamic_cast<DepTranServiceImpl*>(service)) {
@@ -273,7 +273,7 @@ void ServerWorker::ShutDown() {
   }
   delete rep_frame_;
 //  thread_pool_g->release();
-  svr_poll_mgr_->release();
+//  svr_poll_mgr_->release();
 }
 int ServerWorker::DbChecksum() {
   auto cs = this->tx_sched_->mdb_txn_mgr_->Checksum();

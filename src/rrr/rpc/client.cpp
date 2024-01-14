@@ -563,9 +563,9 @@ ClientPool::ClientPool(PollMgr* pollmgr /* =? */,
 
   verify(parallel_connections_ > 0);
   if (pollmgr == nullptr) {
-    pollmgr_ = new PollMgr;
+    pollmgr_.reset(new PollMgr);
   } else {
-    pollmgr_ = (PollMgr*) pollmgr->ref_copy();
+    pollmgr_.reset((PollMgr*) pollmgr);
   }
 }
 
@@ -576,7 +576,7 @@ ClientPool::~ClientPool() {
     }
     delete[] it.second;
   }
-  pollmgr_->release();
+  //pollmgr_->release();
 }
 
 Client* ClientPool::get_client(const string& addr) {
@@ -590,7 +590,7 @@ Client* ClientPool::get_client(const string& addr) {
     int i;
     bool ok = true;
     for (i = 0; i < parallel_connections_; i++) {
-      parallel_clients[i] = new Client(this->pollmgr_);
+      parallel_clients[i] = new Client(pollmgr_.raw_);
       if (parallel_clients[i]->connect(addr.c_str()) != 0) {
         ok = false;
         break;

@@ -1,5 +1,6 @@
 #pragma once
 
+
 #include <unordered_map>
 #include <unordered_set>
 #include <pthread.h>
@@ -13,7 +14,10 @@
 #include "reactor/epoll_wrapper.h"
 #include "reactor/reactor.h"
 
+#ifndef __BORROW_H__
+#define __BORROW_H__
 #include "utils/borrow.h"
+#endif
 
 using namespace borrow;
 // for getaddrinfo() used in Server::start()
@@ -142,6 +146,7 @@ public:
      * ENOENT: method not found
      * EINVAL: invalid packet (field missing)
      */
+    //void begin_reply(Request* req, i32 error_code = 0);
     void begin_reply(Request* req, i32 error_code = 0);
 
     void end_reply();
@@ -182,6 +187,7 @@ public:
 
 class DeferredReply: public NoCopy {
     rrr::Request* req_;
+    //own_ptr<Request> req_;
     ServerConnection* sconn_; // cannot delete this because of legacy reasons: need to modify the rpc compiler.
     std::function<void()> marshal_reply_;
     std::function<void()> cleanup_;
@@ -193,6 +199,8 @@ class DeferredReply: public NoCopy {
     DeferredReply(rrr::Request* req, ServerConnection* sconn,
                   const std::function<void()>& marshal_reply, const std::function<void()>& cleanup)
         : req_(req), sconn_(sconn), marshal_reply_(marshal_reply), cleanup_(cleanup) {
+
+      //req_.reset(req);
       sp_sconn_ = std::dynamic_pointer_cast<ServerConnection>(sconn->shared_from_this());
       auto x = sp_sconn_;
       verify(x);
@@ -216,6 +224,7 @@ class DeferredReply: public NoCopy {
       verify(sp_sconn_);
       auto sconn = sp_sconn_;
       if (sconn && sconn->connected()) {
+        //mut_ptr<Request> mreq_ = borrow_mut(req_);
         sconn->begin_reply(req_);
         marshal_reply_();
         sconn->end_reply();
@@ -236,9 +245,10 @@ class Server: public NoCopy {
 
     own_ptr<Server> svr_ptr_;
 
-   std::unordered_map<i32, std::function<void(Request*, ServerConnection*)>> handlers_;
-    PollMgr* pollmgr_;
-    ThreadPool* threadpool_;
+    //std::unordered_map<i32, std::function<void(Request*, ServerConnection*)>> handlers_;
+    std::unordered_map<i32, std::function<void(Request*, ServerConnection*)>> handlers_;
+    own_ptr<PollMgr> pollmgr_;
+    own_ptr<ThreadPool> threadpool_;
     int server_sock_;
 
     Counter sconns_ctr_;
@@ -307,4 +317,3 @@ public:
 };
 
 } // namespace rrr
-
