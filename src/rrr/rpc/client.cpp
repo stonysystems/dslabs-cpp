@@ -590,7 +590,8 @@ Client* ClientPool::get_client(const string& addr) {
     int i;
     bool ok = true;
     for (i = 0; i < parallel_connections_; i++) {
-      parallel_clients[i] = new Client(pollmgr_.raw_);
+      const_ptr<PollMgr> cpmgr_ = borrow_const(pollmgr_);
+      parallel_clients[i] = new Client(cpmgr_);
       if (parallel_clients[i]->connect(addr.c_str()) != 0) {
         ok = false;
         break;

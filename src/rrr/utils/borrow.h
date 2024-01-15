@@ -20,7 +20,7 @@ class const_ptr {
   const T* raw_{nullptr};
   std::atomic<int32_t>* p_cnt_{nullptr};
   const_ptr() = default;
-  const_ptr(const const_ptr&) = delete;
+  //const_ptr(const const_ptr&) = delete;
   const_ptr(const_ptr&& p) {
     raw_ = p.raw_; 
     p_cnt_ = p.p_cnt_;

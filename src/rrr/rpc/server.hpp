@@ -99,7 +99,7 @@ class ServerConnection: public Pollable {
     Marshal in_, out_;
     SpinLock out_l_;
 
-    Server* server_;
+    own_ptr<Server> server_;
     int socket_;
 
     Marshal::bookmark* bmark_;

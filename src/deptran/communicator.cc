@@ -16,10 +16,15 @@ uint64_t Communicator::global_id = 0;
 
 Communicator::Communicator(PollMgr* poll_mgr) {
   vector<string> addrs;
-  if (poll_mgr == nullptr)
-    rpc_poll_ = new PollMgr(1);
-  else
-    rpc_poll_ = poll_mgr;
+  // if (poll_mgr == nullptr)
+  //   rpc_poll_ = new PollMgr(1);
+  // else
+  //   rpc_poll_ = poll_mgr;
+  if(poll_mgr == nullptr) {
+    rpc_poll_.reset(new PollMgr(1));
+  } else {
+    rpc_poll_.reset(poll_mgr);
+  }
   auto config = Config::GetConfig();
   vector<parid_t> partitions = config->GetAllPartitionIds();
 	Log_info("size of partitions: %d", partitions.size());
@@ -142,7 +147,10 @@ Communicator::ConnectToClientSite(Config::SiteInfo& site,
   snprintf(addr, sizeof(addr), "%s:%d", site.host.c_str(), site.port);
 
   auto start = std::chrono::steady_clock::now();
-  rrr::Client* rpc_cli = new rrr::Client(rpc_poll_);
+  const_ptr<PollMgr> c_rpc_poll_ = borrow_const(rpc_poll_);
+
+  rrr::Client* rpc_cli = new rrr::Client(c_rpc_poll_);
+
   double elapsed;
   int attempt = 0;
   do {
@@ -170,7 +178,8 @@ Communicator::ConnectToSite(Config::SiteInfo& site,
                             std::chrono::milliseconds timeout) {
   string addr = site.GetHostAddr();
   auto start = std::chrono::steady_clock::now();
-  auto rpc_cli = std::make_shared<rrr::Client>(rpc_poll_); 
+  const_ptr<PollMgr> c_rpc_poll_ = borrow_const(rpc_poll_);
+  auto rpc_cli = std::make_shared<rrr::Client>(c_rpc_poll_); 
   double elapsed;
   int attempt = 0;
   do {

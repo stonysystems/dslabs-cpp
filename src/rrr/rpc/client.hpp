@@ -126,7 +126,7 @@ public:
     /**
      * NOT a refcopy! This is intended to avoid circular reference, which prevents everything from being released correctly.
      */
-    own_ptr<PollMgr> pollmgr_;
+    const_ptr<PollMgr> pollmgr_;
     
     std::string host_;
     int sock_;
@@ -167,12 +167,12 @@ public:
      invalidate_pending_futures();
    }
 
-   Client(PollMgr* pollmgr): sock_(-1), status_(NEW), bmark_(nullptr) {
-    if (pollmgr == nullptr) {
-        pollmgr_.reset(new PollMgr);
-    } else {
-        pollmgr_.reset((PollMgr*) pollmgr);
-    }
+   Client(const_ptr<PollMgr>& pollmgr): pollmgr_(pollmgr), sock_(-1), status_(NEW), bmark_(nullptr) {
+    // if (pollmgr == nullptr) {
+    //     pollmgr_.reset(new PollMgr);
+    // } else {
+    //     pollmgr_.reset((PollMgr*) pollmgr);
+    // }
    }
 
     /**

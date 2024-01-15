@@ -87,8 +87,9 @@ SpinLock ServerConnection::rpc_id_missing_l_s;
 
 
 ServerConnection::ServerConnection(Server* server, int socket)
-        : server_(server), socket_(socket), bmark_(nullptr), status_(CONNECTED) {
+        : socket_(socket), bmark_(nullptr), status_(CONNECTED) {
     // increase number of open connections
+    server_.reset(server);
     server_->sconns_ctr_.next(1);
 }
 
