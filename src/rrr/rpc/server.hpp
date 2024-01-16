@@ -42,9 +42,6 @@ struct Request {
 
 class Service {
 public:
-    own_ptr<Service> svc_ptr_;
-
-
     virtual ~Service() {}
     virtual int __reg_to__(Server*) = 0;
 };
@@ -242,13 +239,12 @@ class DeferredReply: public NoCopy {
 class Server: public NoCopy {
     friend class ServerConnection;
  public:
-
-    own_ptr<Server> svr_ptr_;
-
     //std::unordered_map<i32, std::function<void(Request*, ServerConnection*)>> handlers_;
     std::unordered_map<i32, std::function<void(Request*, ServerConnection*)>> handlers_;
+
     own_ptr<PollMgr> pollmgr_;
     own_ptr<ThreadPool> threadpool_;
+
     int server_sock_;
 
     Counter sconns_ctr_;

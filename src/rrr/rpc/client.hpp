@@ -167,7 +167,7 @@ public:
      invalidate_pending_futures();
    }
 
-   Client(const_ptr<PollMgr>& pollmgr): pollmgr_(pollmgr), sock_(-1), status_(NEW), bmark_(nullptr) {
+   Client(const_ptr<PollMgr> pollmgr): pollmgr_(pollmgr), sock_(-1), status_(NEW), bmark_(nullptr) {
     // if (pollmgr == nullptr) {
     //     pollmgr_.reset(new PollMgr);
     // } else {

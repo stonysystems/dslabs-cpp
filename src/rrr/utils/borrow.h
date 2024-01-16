@@ -2,17 +2,48 @@
 #include <memory>
 #include <utility>
 #include <atomic>
-
+#include <cassert>
+#include <cstdlib>
+#include <csignal>
+#include <execinfo.h>
+#include <iostream>
 namespace borrow {
+
+// Macros for custom error handling
+#define PRINT_STACK_TRACE() \
+    do { \
+        void* buffer[30]; \
+        int size = backtrace(buffer, 30); \
+        char** symbols = backtrace_symbols(buffer, size); \
+        if (symbols == nullptr) { \
+            std::cerr << "Failed to obtain stack trace." << std::endl; \
+            break; \
+        } \
+        std::cerr << "Stack trace:" << std::endl; \
+        for (int i = 0; i < size; ++i) { \
+            std::cerr << symbols[i] << std::endl; \
+        } \
+        free(symbols); \
+    } while(0)
 
 #ifndef borrow_verify
 #ifdef BORROW_INFER_CHECK
 #define borrow_verify(x) {if (!(x)) {volatile int* a = nullptr ; *a;}}
 //#define borrow_verify(x) nullptr
 #else
-#define borrow_verify(x) {if (!(x)) {abort();}}
+#define borrow_verify(x, errmsg) \
+    do { \
+        if (!(x)) { \
+            fprintf(stderr, errmsg); \
+            PRINT_STACK_TRACE(); \
+            std::abort(); \
+        } \
+    } while(0)
+  
 #endif
 #endif
+
+
 
 template<class T>
 class const_ptr {
@@ -20,7 +51,7 @@ class const_ptr {
   const T* raw_{nullptr};
   std::atomic<int32_t>* p_cnt_{nullptr};
   const_ptr() = default;
-  //const_ptr(const const_ptr&) = delete;
+  const_ptr(const const_ptr&) = delete;
   const_ptr(const_ptr&& p) {
     raw_ = p.raw_; 
     p_cnt_ = p.p_cnt_;
@@ -31,21 +62,21 @@ class const_ptr {
     raw_ = p.raw_;
     p_cnt_ = p.p_cnt_;
     auto i = (*p_cnt_)++;
-    borrow_verify(i > 0);
+    borrow_verify(i > 0, "error in const_ptr constructor");
   }
   const T* operator->() {
     return raw_;
   }
   void reset() {
     auto i = (*p_cnt_)--;
-    borrow_verify(i > 0);
+    borrow_verify(i > 0, "Trying to reset null pointer");
     raw_ = nullptr;
     p_cnt_ = nullptr;
   }
   ~const_ptr() {
     if (p_cnt_ != nullptr) {
       auto i = (*p_cnt_)--;
-      borrow_verify(i > 0);
+      borrow_verify(i > 0, "Trying to dereference null pointer"); // failure means - count became negative which is not possible
     }
   }
 };
@@ -67,14 +98,14 @@ class mut_ptr {
   }
   void reset() {
     auto i = (*p_cnt_)++;
-    borrow_verify(i == -1);
+    borrow_verify(i == -1, "error in mut_ptr reset");
     p_cnt_ = nullptr;
     raw_ = nullptr;
   }
   ~mut_ptr() {
     if (p_cnt_) {
       auto i = (*p_cnt_)++;
-      borrow_verify(i == -1);
+      borrow_verify(i == -1, "error in checking just single reference of mut_ptr");
     }
   }
 };
@@ -89,8 +120,8 @@ class own_ptr {
   };
   own_ptr(own_ptr&& p) {
     auto i = p.cnt_.exchange(-2);
-    borrow_verify(i==0);
-    borrow_verify(cnt_ == 0);
+    borrow_verify(i==0, "verify failed in own_ptr move constructor");
+    borrow_verify(cnt_ == 0, "verify failed in own_ptr move constructor");
     cnt_ = i;
     raw_ = p.raw_;
     p.raw_ = nullptr;
@@ -98,16 +129,16 @@ class own_ptr {
   };
 
   inline void reset(T* p) {
-    borrow_verify(cnt_ == 0);
+    borrow_verify(cnt_ == 0, "error in own_ptr reset");
     raw_ = p;
-    borrow_verify(cnt_ == 0); // is this enough to capture data race?
+    borrow_verify(cnt_ == 0, "error in own_ptr reset"); // is this enough to capture data race?
   }
   T* raw_{nullptr};
   std::atomic<int32_t> cnt_{0};
 
   inline mut_ptr<T> borrow_mut() {
     mut_ptr<T> mut;
-    borrow_verify(cnt_ == 0);
+    borrow_verify(cnt_ == 0, "verify failed in borrow_mut");
     cnt_--;
     mut.p_cnt_ = &cnt_;
     mut.raw_ = raw_;
@@ -118,7 +149,7 @@ class own_ptr {
   inline const_ptr<T> borrow_const() {
     // *raw_; // for refer static analysis
     auto i = cnt_++;
-    borrow_verify(i >= 0);
+    borrow_verify(i >= 0, "verify failed in borrow_const");
     const_ptr<T> ref;
     ref.raw_ = raw_;
     ref.p_cnt_ = &cnt_;
@@ -126,12 +157,12 @@ class own_ptr {
   }
 
   T* operator->() {
-    borrow_verify(cnt_==0);
+    borrow_verify(cnt_==0, "verify failed in ->");
     return raw_;
   }
 
   void reset() {
-    borrow_verify(cnt_ == 0);
+    borrow_verify(cnt_ == 0, "verify failed in own_ptr reset");
     delete raw_;
     raw_ = nullptr;
   }

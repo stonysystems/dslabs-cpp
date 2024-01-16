@@ -62,6 +62,13 @@
     "random": "cpp",
     "set": "cpp",
     "string": "cpp",
-    "valarray": "cpp"
+    "valarray": "cpp",
+    "*.ipp": "cpp",
+    "variant": "cpp",
+    "cassert": "cpp",
+    "strstream": "cpp",
+    "bit": "cpp",
+    "codecvt": "cpp",
+    "cfenv": "cpp"
   }
 }

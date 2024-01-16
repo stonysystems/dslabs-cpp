@@ -423,7 +423,8 @@ void RaftTestConfig::reconnect(int svr, bool ignore) {
 void RaftTestConfig::slow(int svr, uint32_t msec) {
   std::lock_guard<std::recursive_mutex> lk(connection_m_);
   verify(!isDisconnected(svr));
-  RaftTestConfig::replicas[svr]->commo_->rpc_poll_->slow(msec * 1000);
+  const_ptr<PollMgr> cpoll = borrow_const(RaftTestConfig::replicas[svr]->commo_->rpc_poll_);
+  cpoll->slow(msec * 1000);
 }
 
 RaftServer *RaftTestConfig::GetServer(int svr) {

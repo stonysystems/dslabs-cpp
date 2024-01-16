@@ -396,7 +396,8 @@ Server::~Server() {
 
 //    threadpool_->release();
 //    pollmgr_->release();
-
+    pollmgr_.reset(nullptr);
+    threadpool_.reset(nullptr);
     //Log_debug("rrr::Server: destroyed");
 }
 
