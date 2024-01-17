@@ -141,7 +141,7 @@ public:
 		
 		uint64_t packets;
 		bool clean;
-    Marshal::bookmark* bmark_;
+    own_ptr<Marshal::bookmark> bmark_;
 
     Counter xid_counter_;
     std::unordered_map<i64, Future*> pending_fu_;
@@ -167,7 +167,8 @@ public:
      invalidate_pending_futures();
    }
 
-   Client(const_ptr<PollMgr> pollmgr): pollmgr_(pollmgr), sock_(-1), status_(NEW), bmark_(nullptr) {
+   Client(const_ptr<PollMgr> pollmgr): pollmgr_(pollmgr), sock_(-1), status_(NEW) {
+    bmark_.reset(nullptr);
     // if (pollmgr == nullptr) {
     //     pollmgr_.reset(new PollMgr);
     // } else {

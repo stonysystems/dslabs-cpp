@@ -84,8 +84,6 @@ class ServerListener: public Pollable {
     //   p_gai_result_ = nullptr;
     //   p_svr_addr_ = nullptr;
     // }
-    p_gai_result_.reset(nullptr);
-    p_svr_addr_.reset(nullptr);
   };
 };
 
@@ -99,7 +97,7 @@ class ServerConnection: public Pollable {
     own_ptr<Server> server_;
     int socket_;
 
-    Marshal::bookmark* bmark_;
+    own_ptr<Marshal::bookmark> bmark_;
 
     enum {
         CONNECTED, CLOSED

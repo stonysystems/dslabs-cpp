@@ -518,7 +518,7 @@ Future* Client::begin_request(i32 rpc_id, const FutureAttr& attr /* =... */) {
     return nullptr;
   }
 
-  bmark_ = out_.set_bookmark(sizeof(i32)); // will fill packet size later
+  bmark_.reset(out_.set_bookmark(sizeof(i32))); // will fill packet size later
 
   *this << v64(fu->xid_);
   *this << rpc_id;
@@ -535,11 +535,13 @@ Future* Client::begin_request(i32 rpc_id, const FutureAttr& attr /* =... */) {
 void Client::end_request() {
   //auto start = chrono::steady_clock::now();
   // set reply size in packet
-  if (bmark_ != nullptr) {
+  if (bmark_.raw_ != nullptr) {
     i32 request_size = out_.get_and_reset_write_cnt();
-    out_.write_bookmark(bmark_, &request_size);
-    delete bmark_;
-    bmark_ = nullptr;
+    mut_ptr<Marshal::bookmark> mut_bmark_ = borrow_mut(bmark_);
+    out_.write_bookmark(mut_bmark_, &request_size);
+    mut_bmark_.reset();
+    // delete bmark_;
+    // bmark_ = nullptr;
   }
 
 	out_.found_dep = false;

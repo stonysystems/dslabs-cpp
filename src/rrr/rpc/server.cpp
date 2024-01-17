@@ -87,8 +87,9 @@ SpinLock ServerConnection::rpc_id_missing_l_s;
 
 
 ServerConnection::ServerConnection(Server* server, int socket)
-        : socket_(socket), bmark_(nullptr), status_(CONNECTED) {
+        : socket_(socket), status_(CONNECTED) {
     // increase number of open connections
+    bmark_.reset(nullptr);
     server_.reset(server);
     server_->sconns_ctr_.next(1);
 }
@@ -113,7 +114,7 @@ void ServerConnection::begin_reply(Request* req, i32 error_code /* =... */) {
     v32 v_error_code = error_code;
     v64 v_reply_xid = req->xid;
 
-    bmark_ = this->out_.set_bookmark(sizeof(i32)); // will write reply size later
+    bmark_.reset(this->out_.set_bookmark(sizeof(i32))); // will write reply size later
 
     *this << v_reply_xid;
     *this << v_error_code;
@@ -123,11 +124,13 @@ void ServerConnection::end_reply() {
   verify (status_ == CONNECTED);
 
     // set reply size in packet
-    if (bmark_ != nullptr) {
+    if (bmark_.raw_ != nullptr) {
         i32 reply_size = out_.get_and_reset_write_cnt();
-        out_.write_bookmark(bmark_, &reply_size);
-        delete bmark_;
-        bmark_ = nullptr;
+        mut_ptr<Marshal::bookmark> mut_bmark_ = borrow_mut(bmark_);
+        out_.write_bookmark(mut_bmark_, &reply_size);
+        // delete bmark_;
+        // bmark_ = nullptr;
+        mut_bmark_.reset();
     }
 
     // always enable write events since the code above gauranteed there
@@ -396,8 +399,6 @@ Server::~Server() {
 
 //    threadpool_->release();
 //    pollmgr_->release();
-    pollmgr_.reset(nullptr);
-    threadpool_.reset(nullptr);
     //Log_debug("rrr::Server: destroyed");
 }
 
@@ -594,7 +595,9 @@ int Server::start(const char* bind_addr) {
     string host = addr.substr(0, idx);
     string port = addr.substr(idx + 1);
 
-  start_server_loop_args_type* start_server_loop_args = new start_server_loop_args_type();
+  own_ptr<start_server_loop_args_type> start_server_loop_args;
+  start_server_loop_args.reset(new start_server_loop_args_type());
+
 #ifdef USE_IPC
   struct sockaddr_un saun;
   if ((server_sock_ = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
@@ -662,7 +665,7 @@ int Server::start(const char* bind_addr) {
     status_ = RUNNING;
     Log_info("rrr::Server: started on %s", bind_addr);
 
-    Pthread_create(&loop_th_, nullptr, Server::start_server_loop, start_server_loop_args);
+    Pthread_create(&loop_th_, nullptr, Server::start_server_loop, start_server_loop_args.raw_); // pass raw pointer to different func signature
 
     return 0;
 }
