@@ -119,7 +119,7 @@ public:
 	int count = 0;
 	
   // Protected destructor as required by RefCounted.
-  ~ServerConnection();
+  virtual ~ServerConnection();
 
   ServerConnection(Server* server, int socket);
 
@@ -183,11 +183,12 @@ public:
 class DeferredReply: public NoCopy {
     //rrr::Request* req_;
     own_ptr<Request> req_;
-    ServerConnection* sconn_; // cannot delete this because of legacy reasons: need to modify the rpc compiler.
+    own_ptr<ServerConnection> sp_sconn_;
     std::function<void()> marshal_reply_;
     std::function<void()> cleanup_;
 //    std::weak_ptr<ServerConnection> wp_sconn_;
-    std::shared_ptr<ServerConnection> sp_sconn_{};
+
+    ServerConnection* sconn_; // cannot delete this because of legacy reasons: need to modify the rpc compiler.
 
  public:
 
@@ -196,16 +197,17 @@ class DeferredReply: public NoCopy {
         : sconn_(sconn), marshal_reply_(marshal_reply), cleanup_(cleanup) {
 
       req_.reset(req);
-      sp_sconn_ = std::dynamic_pointer_cast<ServerConnection>(sconn->shared_from_this());
-      auto x = sp_sconn_;
-      verify(x);
+      sp_sconn_.reset(sconn);
+      //sp_sconn_ = std::dynamic_pointer_cast<ServerConnection>(sconn->shared_from_this());
+      //auto x = sp_sconn_;
+      verify(sp_sconn_.raw_);
     }
 
     ~DeferredReply() {
         cleanup_();
         // delete req_;
         // req_ = nullptr;
-        sp_sconn_.reset();
+        // sp_sconn_.reset();
     }
 
     int run_async(const std::function<void()>& f) {
@@ -216,9 +218,9 @@ class DeferredReply: public NoCopy {
 
     void reply() {
 //      auto sconn = wp_sconn_.lock();
-      verify(sp_sconn_);
-      auto sconn = sp_sconn_;
-      if (sconn && sconn->connected()) {
+      verify(sp_sconn_.raw_);
+      auto sconn = borrow_mut(sp_sconn_);
+      if (sconn.raw_ && sconn->connected()) {
         mut_ptr<Request> mreq_ = borrow_mut(req_);
         sconn->begin_reply(mreq_);
         marshal_reply_();

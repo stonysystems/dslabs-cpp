@@ -162,6 +162,8 @@ bool ServerConnection::handle_read() {
         return false;
     }
 
+    //list<Request*> complete_requests;
+    //list<own_ptr<mut_ptr<Request>>> complete_requests;
     list<mut_ptr<Request>> complete_requests;
 
     for (;;) {
