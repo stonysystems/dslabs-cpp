@@ -108,7 +108,7 @@ int ServerConnection::run_async(const std::function<void()>& f) {
 //  return server_->threadpool_->run_async(f);
 }
 
-void ServerConnection::begin_reply(Request* req, i32 error_code /* =... */) {
+void ServerConnection::begin_reply(mut_ptr<Request>& req, i32 error_code /* =... */) {
   verify (status_ == CONNECTED);
     out_l_.lock();
     v32 v_error_code = error_code;
@@ -162,7 +162,7 @@ bool ServerConnection::handle_read() {
         return false;
     }
 
-    list<Request*> complete_requests;
+    list<mut_ptr<Request>> complete_requests;
 
     for (;;) {
         i32 packet_size;
@@ -170,16 +170,19 @@ bool ServerConnection::handle_read() {
         if (n_peek == sizeof(i32) && in_.content_size() >= packet_size + sizeof(i32)) {
             // consume the packet size
             verify(in_.read(&packet_size, sizeof(i32)) == sizeof(i32));
+            //Request* req = new Request;
+            own_ptr<Request> req;
+            req.reset(new Request);
+            
+            mut_ptr<Request> mreq = borrow_mut(req);
 
-            //own_ptr<Request> req;
-
-            Request* req = new Request;
-            verify(req->m.read_from_marshal(in_, packet_size) == (size_t) packet_size);
+            verify(mreq->m.read_from_marshal(in_, packet_size) == (size_t) packet_size);
 
             v64 v_xid;
-            req->m >> v_xid;
-            req->xid = v_xid.get();
-            complete_requests.push_back(req);
+            mreq->m >> v_xid;
+            mreq->xid = v_xid.get();
+
+            complete_requests.push_back(std::move(mreq));
 
         } else {
             // packet not complete or there's no more packet to process
@@ -192,8 +195,9 @@ bool ServerConnection::handle_read() {
 #endif // RPC_STATISTICS
 
     for (auto& req: complete_requests) {
-        //mut_ptr<Request> mreq = borrow_mut(req);
 
+        
+       
         if (req->m.content_size() < sizeof(i32)) {
             // rpc id not provided
             begin_reply(req, EINVAL);
@@ -216,7 +220,7 @@ bool ServerConnection::handle_read() {
             auto x = dynamic_pointer_cast<ServerConnection>(shared_from_this());
             auto y = it->second;
 						//Log_info("CreateRunning: %x", rpc_id);
-            Coroutine::CreateRun([y, req, x, this, rpc_id] () { // capture creq by reference
+            Coroutine::CreateRun([y, &req, x, this, rpc_id] () { // capture creq by reference
 //              verify(x);
               verify(x->connected());
 
@@ -228,7 +232,7 @@ bool ServerConnection::handle_read() {
                   //ev->Wait(1); // timeout after 100 ms
 	      }*/
 //#endif
-              y(req, x.get());
+              y(req.raw_, x.get());
 							/*if (req != nullptr && !req->m.valid_id) {
 								if (count % 100000 == 0) {
 									if (req->m.found_dep) {
@@ -268,11 +272,13 @@ bool ServerConnection::handle_read() {
             if (!surpress_warning) {
                 Log_error("rrr::ServerConnection: no handler for rpc_id=0x%08x", rpc_id);
             }
+
             begin_reply(req, ENOENT);
             end_reply();
             //delete req;
         }
     }
+
   // This is a workaround, the Loop call should really happen
   // between handle_read and handle_write in the epoll loop
   Reactor::GetReactor()->Loop();
@@ -484,7 +490,8 @@ bool ServerListener::handle_read() {
       Log_debug("server@%s got new client, fd=%d", this->addr_.c_str(), clnt_socket);
       verify(set_nonblocking(clnt_socket, true) == 0);
 
-      auto sconn = std::make_shared<ServerConnection>(server_, clnt_socket);
+      //TODO:  change ServerConnection server_ ptr to const_ptr
+      auto sconn = std::make_shared<ServerConnection>(server_.raw_, clnt_socket); 
       server_->sconns_l_.lock();
       server_->sconns_.insert(sconn);
       server_->pollmgr_->add(sconn);
@@ -501,7 +508,7 @@ void ServerListener::close() {
 }
 
 ServerListener::ServerListener(Server* server, string addr) {
-  server_ = server;
+  server_.reset(server);
   addr_ = addr;
   size_t idx = addr.find(":");
   if (idx == string::npos) {

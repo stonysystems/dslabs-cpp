@@ -108,7 +108,10 @@ static PyObject* _pyrpc_server_reg(PyObject* self, PyObject* args) {
             }
         }
 
-        sconn->begin_reply(req, error_code);
+        own_ptr<Request> rreq; rreq.reset(req);
+        mut_ptr<Request> mreq= borrow_mut(rreq);
+
+        sconn->begin_reply(mreq, error_code);
         if (output_m != NULL) {
             *sconn << *output_m;
         }

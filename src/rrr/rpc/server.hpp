@@ -50,7 +50,7 @@ class ServerListener: public Pollable {
   friend class Server;
  public:
   std:: string addr_;
-  Server* server_;
+  own_ptr<Server> server_;
   // cannot use smart pointers for memory management because this pointer
   // needs to be freed by freeaddrinfo.
   // struct addrinfo* p_gai_result_{nullptr};
@@ -142,7 +142,7 @@ public:
      * EINVAL: invalid packet (field missing)
      */
     //void begin_reply(Request* req, i32 error_code = 0);
-    void begin_reply(Request* req, i32 error_code = 0);
+    void begin_reply(mut_ptr<Request>& req, i32 error_code = 0);
 
     void end_reply();
 
@@ -181,8 +181,8 @@ public:
 };
 
 class DeferredReply: public NoCopy {
-    rrr::Request* req_;
-    //own_ptr<Request> req_;
+    //rrr::Request* req_;
+    own_ptr<Request> req_;
     ServerConnection* sconn_; // cannot delete this because of legacy reasons: need to modify the rpc compiler.
     std::function<void()> marshal_reply_;
     std::function<void()> cleanup_;
@@ -193,9 +193,9 @@ class DeferredReply: public NoCopy {
 
     DeferredReply(rrr::Request* req, ServerConnection* sconn,
                   const std::function<void()>& marshal_reply, const std::function<void()>& cleanup)
-        : req_(req), sconn_(sconn), marshal_reply_(marshal_reply), cleanup_(cleanup) {
+        : sconn_(sconn), marshal_reply_(marshal_reply), cleanup_(cleanup) {
 
-      //req_.reset(req);
+      req_.reset(req);
       sp_sconn_ = std::dynamic_pointer_cast<ServerConnection>(sconn->shared_from_this());
       auto x = sp_sconn_;
       verify(x);
@@ -203,8 +203,8 @@ class DeferredReply: public NoCopy {
 
     ~DeferredReply() {
         cleanup_();
-        delete req_;
-        req_ = nullptr;
+        // delete req_;
+        // req_ = nullptr;
         sp_sconn_.reset();
     }
 
@@ -219,8 +219,8 @@ class DeferredReply: public NoCopy {
       verify(sp_sconn_);
       auto sconn = sp_sconn_;
       if (sconn && sconn->connected()) {
-        //mut_ptr<Request> mreq_ = borrow_mut(req_);
-        sconn->begin_reply(req_);
+        mut_ptr<Request> mreq_ = borrow_mut(req_);
+        sconn->begin_reply(mreq_);
         marshal_reply_();
         sconn->end_reply();
       } else {
