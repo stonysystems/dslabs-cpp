@@ -576,39 +576,48 @@ ClientPool::~ClientPool() {
     for (int i = 0; i < parallel_connections_; i++) {
       it.second[i]->close_and_release();
     }
-    delete[] it.second;
+    //delete[] it.second;
   }
   //pollmgr_->release();
 }
 
 Client* ClientPool::get_client(const string& addr) {
-  Client* cl = nullptr;
+  Client* cl;
+  //cl.reset(nullptr);
   l_.lock();
-  map<string, Client**>::iterator it = cache_.find(addr);
+  map<string, vector<own_ptr<Client>>>::iterator it = cache_.find(addr);
   if (it != cache_.end()) {
-    cl = it->second[rand_() % parallel_connections_];
+    cl = it->second[rand_() % parallel_connections_].raw_;
   } else {
-    Client** parallel_clients = new Client* [parallel_connections_];
+    vector<own_ptr<Client>> parallel_clients(parallel_connections_);
+
+    
+    //Client** parallel_clients = new Client* [parallel_connections_];
     int i;
     bool ok = true;
     for (i = 0; i < parallel_connections_; i++) {
       const_ptr<PollMgr> cpmgr_ = borrow_const(pollmgr_);
-      parallel_clients[i] = new Client(cpmgr_);
-      if (parallel_clients[i]->connect(addr.c_str()) != 0) {
+
+      own_ptr<Client> client_ptr_(new Client(cpmgr_));
+
+      if (client_ptr_->connect(addr.c_str()) != 0) {
         ok = false;
         break;
       }
+      parallel_clients.push_back(std::move(client_ptr_));
+      
     }
     if (ok) {
-      cl = parallel_clients[rand_() % parallel_connections_];
-      insert_into_map(cache_, addr, parallel_clients);
+      cl = parallel_clients[rand_() % parallel_connections_].raw_;
+      cache_.insert(std::make_pair(addr, std::move(parallel_clients)));
+      //insert_into_map(cache_, addr, parallel_clients);
     } else {
       // close connections
       while (i >= 0) {
         parallel_clients[i]->close_and_release();
         i--;
       }
-      delete[] parallel_clients;
+      //delete[] parallel_clients;
     }
   }
   l_.unlock();

@@ -239,7 +239,7 @@ class ClientPool: public NoCopy {
 
     // guard cache_
     SpinLock l_;
-    std::map<std::string, rrr::Client**> cache_;
+    std::map<std::string, vector<own_ptr<rrr::Client>>> cache_;
     int parallel_connections_;
 
 public:
