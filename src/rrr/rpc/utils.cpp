@@ -14,6 +14,11 @@
 #include "base/all.hpp"
 #include "utils.hpp"
 
+#ifndef __BORROW_H__
+#define __BORROW_H__
+#include "utils/borrow.h"
+#endif
+
 using namespace std;
 
 namespace rrr {
@@ -33,7 +38,8 @@ int set_nonblocking(int fd, bool nonblocking) {
 int find_open_port() {
     int fd = socket(AF_INET, SOCK_STREAM, 0);
 
-    addrinfo *local_addr;
+    borrow::own_ptr<addrinfo> local_addr;
+    addrinfo *local_addr_tmp;
 
     addrinfo hints;
     bzero(&hints, sizeof(hints));
@@ -41,7 +47,8 @@ int find_open_port() {
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
 
-    if (getaddrinfo("0.0.0.0", nullptr, nullptr, &local_addr) != 0) {
+    if (getaddrinfo("0.0.0.0", nullptr, nullptr, &local_addr.raw_) != 0) {
+        local_addr.reset(local_addr_tmp);
         Log_error("Failed to getaddrinfo");
         return -1;
     }
@@ -66,7 +73,7 @@ int find_open_port() {
         break;
     }
 
-    freeaddrinfo(local_addr);
+    //freeaddrinfo(local_addr_tmp);
     ::close(fd);
 
     if (port != -1) {
