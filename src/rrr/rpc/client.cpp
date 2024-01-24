@@ -582,12 +582,12 @@ ClientPool::~ClientPool() {
 }
 
 Client* ClientPool::get_client(const string& addr) {
-  Client* cl;
-  //cl.reset(nullptr);
+  own_ptr<Client> cl;
+  cl.reset(nullptr);
   l_.lock();
   map<string, vector<own_ptr<Client>>>::iterator it = cache_.find(addr);
   if (it != cache_.end()) {
-    cl = it->second[rand_() % parallel_connections_].raw_;
+    cl.reset(it->second[rand_() % parallel_connections_].raw_);
   } else {
     vector<own_ptr<Client>> parallel_clients(parallel_connections_);
 
@@ -608,7 +608,7 @@ Client* ClientPool::get_client(const string& addr) {
       
     }
     if (ok) {
-      cl = parallel_clients[rand_() % parallel_connections_].raw_;
+      cl.reset(parallel_clients[rand_() % parallel_connections_].raw_);
       cache_.insert(std::make_pair(addr, std::move(parallel_clients)));
       //insert_into_map(cache_, addr, parallel_clients);
     } else {
@@ -621,7 +621,7 @@ Client* ClientPool::get_client(const string& addr) {
     }
   }
   l_.unlock();
-  return cl;
+  return cl.raw_;
 }
 
 } // namespace rrr
