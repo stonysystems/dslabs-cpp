@@ -235,7 +235,7 @@ static PyObject* _pyrpc_client_sync_call(PyObject* self, PyObject* args) {
         if (error_code == 0) {
             m_rep->read_from_marshal(fu->get_reply(), fu->get_reply().content_size());
         }
-        fu->release();
+        //fu->release();
     }
 
     PyEval_RestoreThread(_save);
@@ -482,7 +482,7 @@ static PyObject* _pyrpc_future_wait(PyObject* self, PyObject* args) {
         if (error_code == 0) {
             m_rep->read_from_marshal(fu->get_reply(), fu->get_reply().content_size());
         }
-        fu->release();
+        //fu->release();
     }
 
     PyEval_RestoreThread(_save);
@@ -514,7 +514,7 @@ static PyObject* _pyrpc_future_timedwait(PyObject* self, PyObject* args) {
         if (error_code == 0) {
             m_rep->read_from_marshal(fu->get_reply(), fu->get_reply().content_size());
         }
-        fu->release();
+        //fu->release();
     }
 
     PyEval_RestoreThread(_save);

@@ -27,7 +27,7 @@ struct FutureAttr {
     std::function<void(Future*)> callback;
 };
 
-class Future: public RefCounted {
+class Future {
     friend class Client;
 
     i64 xid_;
@@ -42,14 +42,7 @@ class Future: public RefCounted {
     pthread_mutex_t ready_m_;
 
     void notify_ready();
-
-protected:
-
-    // protected destructor as required by RefCounted.
-    ~Future() {
-        Pthread_mutex_destroy(&ready_m_);
-        Pthread_cond_destroy(&ready_cond_);
-    }
+    
 
 public:
 
@@ -57,6 +50,11 @@ public:
             : xid_(xid), error_code_(0), attr_(attr), ready_(false), timed_out_(false) {
         Pthread_mutex_init(&ready_m_, nullptr);
         Pthread_cond_init(&ready_cond_, nullptr);
+    }
+
+    ~Future() {
+        Pthread_mutex_destroy(&ready_m_);
+        Pthread_cond_destroy(&ready_cond_);
     }
 
     bool ready() {
@@ -86,9 +84,9 @@ public:
     }
 
     static inline void safe_release(Future* fu) {
-        if (fu != nullptr) {
-            fu->release();
-        }
+        // if (fu != nullptr) {
+        //     fu->release();
+        // }
     }
 };
 
@@ -112,10 +110,10 @@ public:
     }
 
     ~FutureGroup() {
-        wait_all();
-        for (auto& f : futures_) {
-            f->release();
-        }
+        // wait_all();
+        // for (auto& f : futures_) {
+        //     f->release();
+        // }
     }
 };
 
@@ -144,7 +142,7 @@ public:
     own_ptr<Marshal::bookmark> bmark_;
 
     Counter xid_counter_;
-    std::unordered_map<i64, Future*> pending_fu_;
+    std::unordered_map<i64, own_ptr<Future>> pending_fu_;
 		std::unordered_map<i64, struct timespec> rpc_starts;
 
     SpinLock pending_fu_l_;
