@@ -92,15 +92,18 @@ public:
 
 class FutureGroup {
 private:
-    std::vector<Future*> futures_;
+    std::vector<own_ptr<Future>> futures_;
 
 public:
     void add(Future* f) {
+        own_ptr<Future> fu;
+        fu.reset(f);
         if (f == nullptr) {
             Log_error("Invalid Future object passed to FutureGroup!");
             return;
         }
-        futures_.push_back(f);
+
+        futures_.push_back(std::move(fu));
     }
 
     void wait_all() {
