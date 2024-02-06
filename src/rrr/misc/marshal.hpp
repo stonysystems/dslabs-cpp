@@ -270,7 +270,7 @@ class Marshal: public NoCopy {
   size_t write_to_fd(int fd);
 
   bookmark *set_bookmark(size_t n);
-  void write_bookmark(mut_ptr<bookmark>& bm, const void *p) {
+  void write_bookmark(const_ptr<bookmark> bm, const void *p) {
     const char *pc = (const char *) p;
     assert(bm.raw_ != nullptr && bm->ptr != nullptr && p != nullptr);
     for (size_t i = 0; i < bm->size; i++) {

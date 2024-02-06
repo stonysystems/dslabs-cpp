@@ -550,9 +550,9 @@ void Client::end_request() {
   // set reply size in packet
   if (bmark_.raw_ != nullptr) {
     i32 request_size = out_.get_and_reset_write_cnt();
-    mut_ptr<Marshal::bookmark> mut_bmark_ = borrow_mut(bmark_);
-    out_.write_bookmark(mut_bmark_, &request_size);
-    mut_bmark_.reset();
+    const_ptr<Marshal::bookmark> const_bmark_ = borrow_const(bmark_);
+    out_.write_bookmark(const_bmark_, &request_size);
+    const_bmark_.reset();
     // delete bmark_;
     // bmark_ = nullptr;
   }

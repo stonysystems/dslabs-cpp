@@ -126,11 +126,11 @@ void ServerConnection::end_reply() {
     // set reply size in packet
     if (bmark_.raw_ != nullptr) {
         i32 reply_size = out_.get_and_reset_write_cnt();
-        mut_ptr<Marshal::bookmark> mut_bmark_ = borrow_mut(bmark_);
-        out_.write_bookmark(mut_bmark_, &reply_size);
+        const_ptr<Marshal::bookmark> const_bmark_ = borrow_const(bmark_);
+        out_.write_bookmark(const_bmark_, &reply_size);
         // delete bmark_;
         // bmark_ = nullptr;
-        mut_bmark_.reset();
+        const_bmark_.reset();
     }
 
     // always enable write events since the code above gauranteed there
