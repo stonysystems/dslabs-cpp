@@ -207,7 +207,7 @@ def emit_service_and_proxy(service, f, rpc_table):
                         for param in sync_out_params:
                             f.writeln("__fu__->get_reply() >> *%s;" % param)
                     f.writeln("}")
-                f.writeln("__fu__->release();")
+                # f.writeln("__fu__->release();")
                 f.writeln("return __ret__;")
             f.writeln("}")
     f.writeln("};")

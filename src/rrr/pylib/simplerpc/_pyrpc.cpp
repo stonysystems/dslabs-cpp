@@ -141,10 +141,10 @@ static PyObject* _pyrpc_init_client(PyObject* self, PyObject* args) {
     unsigned long u;
     if (!PyArg_ParseTuple(args, "k", &u))
         return NULL;
-    own_ptr<PollMgr> poll;
-    poll.reset((PollMgr*) u);
-
-    const_ptr<PollMgr> c_poll;
+    // own_ptr<PollMgr> poll;
+    // poll.reset((PollMgr*) u);
+    shared_ptr<PollMgr> c_poll((PollMgr*) u);
+    // const_ptr<PollMgr> c_poll;
     auto x = std::make_shared<Client>(c_poll);
   clients.push_back(x);
   Client* clnt = x.get();

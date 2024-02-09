@@ -147,9 +147,8 @@ Communicator::ConnectToClientSite(Config::SiteInfo& site,
   snprintf(addr, sizeof(addr), "%s:%d", site.host.c_str(), site.port);
 
   auto start = std::chrono::steady_clock::now();
-  const_ptr<PollMgr> c_rpc_poll_ = borrow_const(rpc_poll_);
 
-  rrr::Client* rpc_cli = new rrr::Client(c_rpc_poll_);
+  rrr::Client* rpc_cli = new rrr::Client(rpc_poll_);
 
   double elapsed;
   int attempt = 0;
@@ -178,8 +177,8 @@ Communicator::ConnectToSite(Config::SiteInfo& site,
                             std::chrono::milliseconds timeout) {
   string addr = site.GetHostAddr();
   auto start = std::chrono::steady_clock::now();
-  const_ptr<PollMgr> c_rpc_poll_ = borrow_const(rpc_poll_);
-  auto rpc_cli = std::make_shared<rrr::Client>(c_rpc_poll_); 
+
+  auto rpc_cli = std::make_shared<rrr::Client>(rpc_poll_); 
   double elapsed;
   int attempt = 0;
   do {

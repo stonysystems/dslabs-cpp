@@ -609,7 +609,8 @@ Client* ClientPool::get_client(const string& addr) {
     int i;
     bool ok = true;
     for (i = 0; i < parallel_connections_; i++) {
-      const_ptr<PollMgr> cpmgr_ = borrow_const(pollmgr_);
+      // const_ptr<PollMgr> cpmgr_ = borrow_const(pollmgr_);
+      shared_ptr<PollMgr> cpmgr_(pollmgr_);
 
       own_ptr<Client> client_ptr_(new Client(cpmgr_));
 
