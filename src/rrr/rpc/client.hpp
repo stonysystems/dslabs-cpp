@@ -127,7 +127,7 @@ public:
     /**
      * NOT a refcopy! This is intended to avoid circular reference, which prevents everything from being released correctly.
      */
-    shared_ptr<PollMgr> pollmgr_;
+    shared_ptr<own_ptr<PollMgr>> pollmgr_;
     
     std::string host_;
     int sock_;
@@ -168,7 +168,7 @@ public:
      invalidate_pending_futures();
    }
 
-   Client(shared_ptr<PollMgr> pollmgr): pollmgr_(pollmgr), sock_(-1), status_(NEW) {
+   Client(shared_ptr<own_ptr<PollMgr>> pollmgr): pollmgr_(pollmgr), sock_(-1), status_(NEW) {
     bmark_.reset(nullptr);
     // if (pollmgr == nullptr) {
     //     pollmgr_.reset(new PollMgr);
@@ -236,7 +236,7 @@ class ClientPool: public NoCopy {
     rrr::Rand rand_;
 
     // refcopy
-    shared_ptr<rrr::PollMgr> pollmgr_;
+    own_ptr<rrr::PollMgr> pollmgr_;
 
     // guard cache_
     SpinLock l_;

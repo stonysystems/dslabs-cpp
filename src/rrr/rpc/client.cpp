@@ -104,7 +104,7 @@ void Client::invalidate_pending_futures() {
 void Client::close() {
   //Log_info("CLOSING");
   if (status_ == CONNECTED) {
-    pollmgr_->remove(shared_from_this());
+    pollmgr_->raw_->remove(shared_from_this());
     ::close(sock_);
   }
   status_ = CLOSED;
@@ -184,8 +184,8 @@ int Client::connect(const char* addr, bool client) {
   Log_debug("rrr::Client: connected to %s", addr);
 
   status_ = CONNECTED;
-  pollmgr_->add(shared_from_this());
-
+  // pollmgr_->add(shared_from_this());
+  pollmgr_->raw_->add(shared_from_this());
   return 0;
 }
 
@@ -207,7 +207,7 @@ void Client::handle_write() {
   out_.write_to_fd(sock_);
 	
   if (out_.empty()) {
-    pollmgr_->update_mode(shared_from_this(), Pollable::READ);
+    pollmgr_->raw_->update_mode(shared_from_this(), Pollable::READ);
   }
   out_l_.unlock();
 	/*clock_gettime(CLOCK_MONOTONIC, &end2);
@@ -562,7 +562,7 @@ void Client::end_request() {
 
   // always enable write events since the code above gauranteed there
   // will be some data to send
-  pollmgr_->update_mode(shared_from_this(), Pollable::READ | Pollable::WRITE);
+  pollmgr_->raw_->update_mode(shared_from_this(), Pollable::READ | Pollable::WRITE);
 
   out_l_.unlock();
 			
@@ -610,7 +610,7 @@ Client* ClientPool::get_client(const string& addr) {
     bool ok = true;
     for (i = 0; i < parallel_connections_; i++) {
       // const_ptr<PollMgr> cpmgr_ = borrow_const(pollmgr_);
-      shared_ptr<PollMgr> cpmgr_(pollmgr_);
+      shared_ptr<own_ptr<PollMgr>> cpmgr_(new own_ptr<PollMgr>(pollmgr_.raw_));
 
       own_ptr<Client> client_ptr_(new Client(cpmgr_));
 

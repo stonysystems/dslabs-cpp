@@ -242,7 +242,7 @@ class Server: public NoCopy {
     //std::unordered_map<i32, std::function<void(Request*, ServerConnection*)>> handlers_;
     std::unordered_map<i32, std::function<void(Request*, ServerConnection*)>> handlers_;
 
-    shared_ptr<PollMgr> pollmgr_;
+    own_ptr<PollMgr> pollmgr_;
     own_ptr<ThreadPool> threadpool_;
 
     int server_sock_;

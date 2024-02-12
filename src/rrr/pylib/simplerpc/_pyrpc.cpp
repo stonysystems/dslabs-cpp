@@ -143,7 +143,8 @@ static PyObject* _pyrpc_init_client(PyObject* self, PyObject* args) {
         return NULL;
     // own_ptr<PollMgr> poll;
     // poll.reset((PollMgr*) u);
-    shared_ptr<PollMgr> c_poll((PollMgr*) u);
+    shared_ptr<own_ptr<PollMgr>> c_poll(new own_ptr<PollMgr>((PollMgr*) u));
+    //shared_ptr<PollMgr> c_poll((PollMgr*) u);
     // const_ptr<PollMgr> c_poll;
     auto x = std::make_shared<Client>(c_poll);
   clients.push_back(x);
