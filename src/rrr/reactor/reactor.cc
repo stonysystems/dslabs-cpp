@@ -677,7 +677,7 @@ static inline uint32_t hash_fd(uint32_t key) {
   return key;
 }
 
-void PollMgr::add(shared_ptr<Pollable> poll) const {
+void PollMgr::add(shared_ptr<Pollable> poll) {
   int fd = poll->fd();
   if (fd >= 0) {
     int tid = hash_fd(fd) % n_threads_;
@@ -685,7 +685,7 @@ void PollMgr::add(shared_ptr<Pollable> poll) const {
   }
 }
 
-void PollMgr::remove(shared_ptr<Pollable> poll) const {
+void PollMgr::remove(shared_ptr<Pollable> poll) {
   int fd = poll->fd();
   if (fd >= 0) {
     int tid = hash_fd(fd) % n_threads_;
@@ -693,26 +693,26 @@ void PollMgr::remove(shared_ptr<Pollable> poll) const {
   }
 }
 
-void PollMgr::pause() const {
+void PollMgr::pause() {
   for (int idx = 0; idx < n_threads_; idx++) {
     poll_threads_[idx].pause();
   }
 }
 
-void PollMgr::slow(uint32_t sleep_usec) const {
+void PollMgr::slow(uint32_t sleep_usec) {
   for (int idx = 0; idx < n_threads_; idx++) {
     poll_threads_[idx].sleep_usec_ = sleep_usec;
   }
 }
 
-void PollMgr::resume() const {
+void PollMgr::resume()  {
   for (int idx = 0; idx < n_threads_; idx++) {
     poll_threads_[idx].sleep_usec_ = 0;
     poll_threads_[idx].resume();
   }
 }
 
-void PollMgr::update_mode(shared_ptr<Pollable> poll, int new_mode) const {
+void PollMgr::update_mode(shared_ptr<Pollable> poll, int new_mode) {
   int fd = poll->fd();
   if (fd >= 0) {
     int tid = hash_fd(fd) % n_threads_;
@@ -720,12 +720,12 @@ void PollMgr::update_mode(shared_ptr<Pollable> poll, int new_mode) const {
   }
 }
 
-void PollMgr::add(std::shared_ptr<Job> fjob) const {
+void PollMgr::add(std::shared_ptr<Job> fjob) {
   int tid = 0;
   poll_threads_[tid].add(fjob);
 }
 
-void PollMgr::remove(std::shared_ptr<Job> fjob) const {
+void PollMgr::remove(std::shared_ptr<Job> fjob) {
   int tid = 0;
   poll_threads_[tid].remove(fjob);
 }

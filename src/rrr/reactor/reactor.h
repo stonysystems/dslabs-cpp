@@ -128,16 +128,16 @@ public:
     PollMgr(const PollMgr&) = delete;
     PollMgr& operator=(const PollMgr&) = delete;
     ~PollMgr();
-    void add(shared_ptr<Pollable>) const ;
-    void remove(shared_ptr<Pollable>) const;
-    void update_mode(shared_ptr<Pollable>, int new_mode) const;
-    void pause() const;
-    void resume() const;
-  void slow(uint32_t sleep_usec) const;
+    void add(shared_ptr<Pollable>) ;
+    void remove(shared_ptr<Pollable>);
+    void update_mode(shared_ptr<Pollable>, int new_mode);
+    void pause();
+    void resume();
+  void slow(uint32_t sleep_usec);
 
   // Frequent Job
-    void add(std::shared_ptr<Job> sp_job) const;
-    void remove(std::shared_ptr<Job> sp_job) const;
+    void add(std::shared_ptr<Job> sp_job);
+    void remove(std::shared_ptr<Job> sp_job);
 };
 
 } // namespace rrr
