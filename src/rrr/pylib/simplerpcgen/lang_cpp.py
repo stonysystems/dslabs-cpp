@@ -33,8 +33,8 @@ def emit_service_and_proxy(service, f, rpc_table):
                 f.writeln("%s = %s," % (func.name.upper(), hex(rpc_code)))
         f.writeln("};")
         f.writeln()
-        # f.writeln("own_ptr<%sService> %s__ptr__;" % (service.name, service.name.lower()))
-        # f.writeln("const_ptr<%sService> %s__cptr__ = borrow_const(%s__ptr__);" % (service.name, service.name.lower(), service.name.lower()))
+        # f.writeln("RefCell<%sService> %s__ptr__;" % (service.name, service.name.lower()))
+        # f.writeln("RefConst<%sService> %s__cptr__ = borrow_const(%s__ptr__);" % (service.name, service.name.lower(), service.name.lower()))
         # f.writeln()
         f.writeln("int __reg_to__(rrr::Server* svr) {")
         with f.indent():

@@ -78,11 +78,11 @@ void Client::set_valid(bool valid) {
 }
 
 void Client::invalidate_pending_futures() {
-	list<own_ptr<Future>> futures;
+	list<RefCell<Future>> futures;
   pending_fu_l_.lock();
   for (auto& it: pending_fu_) {
 
-    // own_ptr<Future> p_fu_;
+    // RefCell<Future> p_fu_;
     // p_fu_.reset(it.second);
 
     futures.push_back(std::move(it.second));
@@ -249,11 +249,11 @@ bool Client::handle_read(){
       in_ >> v_reply_xid >> v_error_code;
 
       pending_fu_l_.lock();
-      unordered_map<i64, own_ptr<Future>>::iterator it = pending_fu_.find(v_reply_xid.get());
+      unordered_map<i64, RefCell<Future>>::iterator it = pending_fu_.find(v_reply_xid.get());
       if (it != pending_fu_.end()) {
-        // own_ptr<Future> fu;
+        // RefCell<Future> fu;
         // fu.reset(it->second);
-        mut_ptr<Future> fu = borrow_mut(it->second); // TODO
+        RefMut<Future> fu = borrow_mut(it->second); // TODO
 
         verify(fu->xid_ == v_reply_xid.get());
 
@@ -343,10 +343,10 @@ iters = 5;
       in_ >> v_reply_xid >> v_error_code;
 
       pending_fu_l_.lock();
-      unordered_map<i64, own_ptr<Future>>::iterator it = pending_fu_.find(v_reply_xid.get());
+      unordered_map<i64, RefCell<Future>>::iterator it = pending_fu_.find(v_reply_xid.get());
 
       if(it != pending_fu_.end()){
-        mut_ptr<Future> fu = borrow_mut(it->second);
+        RefMut<Future> fu = borrow_mut(it->second);
         verify(fu->xid_ == v_reply_xid.get());
 
 				
@@ -502,7 +502,7 @@ Future* Client::begin_request(i32 rpc_id, const FutureAttr& attr /* =... */) {
     return nullptr;
   }
 
-  own_ptr<Future> fu;
+  RefCell<Future> fu;
   fu.reset(new Future(xid_counter_.next(), attr));
 
   auto xid_copy = fu->xid_;
@@ -519,7 +519,7 @@ Future* Client::begin_request(i32 rpc_id, const FutureAttr& attr /* =... */) {
   // check if the client gets closed in the meantime
   if (status_ != CONNECTED) {
     pending_fu_l_.lock();
-    unordered_map<i64, own_ptr<Future>>::iterator it = pending_fu_.find(xid_copy);
+    unordered_map<i64, RefCell<Future>>::iterator it = pending_fu_.find(xid_copy);
     if (it != pending_fu_.end()) {
       //it->second->release();
       pending_fu_.erase(it);
@@ -550,7 +550,7 @@ void Client::end_request() {
   // set reply size in packet
   if (bmark_.raw_ != nullptr) {
     i32 request_size = out_.get_and_reset_write_cnt();
-    const_ptr<Marshal::bookmark> const_bmark_ = borrow_const(bmark_);
+    RefConst<Marshal::bookmark> const_bmark_ = borrow_const(bmark_);
     out_.write_bookmark(const_bmark_, &request_size);
     const_bmark_.reset();
     // delete bmark_;
@@ -595,24 +595,24 @@ ClientPool::~ClientPool() {
 }
 
 Client* ClientPool::get_client(const string& addr) {
-  own_ptr<Client> cl;
+  RefCell<Client> cl;
   cl.reset(nullptr);
   l_.lock();
-  map<string, vector<own_ptr<Client>>>::iterator it = cache_.find(addr);
+  map<string, vector<RefCell<Client>>>::iterator it = cache_.find(addr);
   if (it != cache_.end()) {
     cl.reset(it->second[rand_() % parallel_connections_].raw_);
   } else {
-    vector<own_ptr<Client>> parallel_clients(parallel_connections_);
+    vector<RefCell<Client>> parallel_clients(parallel_connections_);
 
     
     //Client** parallel_clients = new Client* [parallel_connections_];
     int i;
     bool ok = true;
     for (i = 0; i < parallel_connections_; i++) {
-      // const_ptr<PollMgr> cpmgr_ = borrow_const(pollmgr_);
-      shared_ptr<own_ptr<PollMgr>> cpmgr_(new own_ptr<PollMgr>(pollmgr_.raw_));
+      // RefConst<PollMgr> cpmgr_ = borrow_const(pollmgr_);
+      shared_ptr<RefCell<PollMgr>> cpmgr_(new RefCell<PollMgr>(pollmgr_.raw_));
 
-      own_ptr<Client> client_ptr_(new Client(cpmgr_));
+      RefCell<Client> client_ptr_(new Client(cpmgr_));
 
       if (client_ptr_->connect(addr.c_str()) != 0) {
         ok = false;

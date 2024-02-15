@@ -50,13 +50,13 @@ class ServerListener: public Pollable {
   friend class Server;
  public:
   std:: string addr_;
-  own_ptr<Server> server_;
+  RefCell<Server> server_;
   // cannot use smart pointers for memory management because this pointer
   // needs to be freed by freeaddrinfo.
   // struct addrinfo* p_gai_result_{nullptr};
   // struct addrinfo* p_svr_addr_{nullptr};
-  struct own_ptr<addrinfo> p_gai_result_;
-  struct own_ptr<addrinfo> p_svr_addr_;
+  struct RefCell<addrinfo> p_gai_result_;
+  struct RefCell<addrinfo> p_svr_addr_;
 
   int server_sock_{0};
   int poll_mode() {
@@ -94,10 +94,10 @@ class ServerConnection: public Pollable {
     Marshal in_, out_;
     SpinLock out_l_;
 
-    own_ptr<Server> server_;
+    RefCell<Server> server_;
     int socket_;
 
-    own_ptr<Marshal::bookmark> bmark_;
+    RefCell<Marshal::bookmark> bmark_;
 
     enum {
         CONNECTED, CLOSED
@@ -142,7 +142,7 @@ public:
      * EINVAL: invalid packet (field missing)
      */
     //void begin_reply(Request* req, i32 error_code = 0);
-    void begin_reply(mut_ptr<Request>& req, i32 error_code = 0);
+    void begin_reply(RefMut<Request>& req, i32 error_code = 0);
 
     void end_reply();
 
@@ -182,8 +182,8 @@ public:
 
 class DeferredReply: public NoCopy {
     //rrr::Request* req_;
-    own_ptr<Request> req_;
-    own_ptr<ServerConnection> sp_sconn_;
+    RefCell<Request> req_;
+    RefCell<ServerConnection> sp_sconn_;
     std::function<void()> marshal_reply_;
     std::function<void()> cleanup_;
 //    std::weak_ptr<ServerConnection> wp_sconn_;
@@ -221,7 +221,7 @@ class DeferredReply: public NoCopy {
       verify(sp_sconn_.raw_);
       auto sconn = borrow_mut(sp_sconn_);
       if (sconn.raw_ && sconn->connected()) {
-        mut_ptr<Request> mreq_ = borrow_mut(req_);
+        RefMut<Request> mreq_ = borrow_mut(req_);
         sconn->begin_reply(mreq_);
         marshal_reply_();
         sconn->end_reply();
@@ -242,8 +242,8 @@ class Server: public NoCopy {
     //std::unordered_map<i32, std::function<void(Request*, ServerConnection*)>> handlers_;
     std::unordered_map<i32, std::function<void(Request*, ServerConnection*)>> handlers_;
 
-    own_ptr<PollMgr> pollmgr_;
-    own_ptr<ThreadPool> threadpool_;
+    RefCell<PollMgr> pollmgr_;
+    RefCell<ThreadPool> threadpool_;
 
     int server_sock_;
 
@@ -271,7 +271,7 @@ public:
     int start(const char* bind_addr);
 
     int reg(Service* svc) {
-        //const_ptr<Server> const_svr_ptr_ = borrow_const(svr_ptr_);
+        //RefConst<Server> const_svr_ptr_ = borrow_const(svr_ptr_);
         return svc->__reg_to__(this);
     }
 

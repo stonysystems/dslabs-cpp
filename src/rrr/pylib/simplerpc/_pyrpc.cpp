@@ -108,8 +108,8 @@ static PyObject* _pyrpc_server_reg(PyObject* self, PyObject* args) {
             }
         }
 
-        own_ptr<Request> rreq; rreq.reset(req);
-        mut_ptr<Request> mreq= borrow_mut(rreq);
+        RefCell<Request> rreq; rreq.reset(req);
+        RefMut<Request> mreq= borrow_mut(rreq);
 
         sconn->begin_reply(mreq, error_code);
         if (output_m != NULL) {
@@ -141,11 +141,11 @@ static PyObject* _pyrpc_init_client(PyObject* self, PyObject* args) {
     unsigned long u;
     if (!PyArg_ParseTuple(args, "k", &u))
         return NULL;
-    // own_ptr<PollMgr> poll;
+    // RefCell<PollMgr> poll;
     // poll.reset((PollMgr*) u);
-    shared_ptr<own_ptr<PollMgr>> c_poll(new own_ptr<PollMgr>((PollMgr*) u));
+    shared_ptr<RefCell<PollMgr>> c_poll(new RefCell<PollMgr>((PollMgr*) u));
     //shared_ptr<PollMgr> c_poll((PollMgr*) u);
-    // const_ptr<PollMgr> c_poll;
+    // RefConst<PollMgr> c_poll;
     auto x = std::make_shared<Client>(c_poll);
   clients.push_back(x);
   Client* clnt = x.get();

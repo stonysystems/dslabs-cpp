@@ -148,7 +148,7 @@ Communicator::ConnectToClientSite(Config::SiteInfo& site,
 
   auto start = std::chrono::steady_clock::now();
 
-  shared_ptr<own_ptr<PollMgr>> s_rpc_poll_(new own_ptr<PollMgr>(rpc_poll_.raw_));
+  shared_ptr<RefCell<PollMgr>> s_rpc_poll_(new RefCell<PollMgr>(rpc_poll_.raw_));
   rrr::Client* rpc_cli = new rrr::Client(s_rpc_poll_);
 
   double elapsed;
@@ -179,7 +179,7 @@ Communicator::ConnectToSite(Config::SiteInfo& site,
   string addr = site.GetHostAddr();
   auto start = std::chrono::steady_clock::now();
 
-  shared_ptr<own_ptr<PollMgr>> s_rpc_poll_(new own_ptr<PollMgr>(rpc_poll_.raw_));
+  shared_ptr<RefCell<PollMgr>> s_rpc_poll_(new RefCell<PollMgr>(rpc_poll_.raw_));
   
   auto rpc_cli = std::make_shared<rrr::Client>(s_rpc_poll_); 
   double elapsed;

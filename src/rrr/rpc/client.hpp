@@ -92,11 +92,11 @@ public:
 
 class FutureGroup {
 private:
-    std::vector<own_ptr<Future>> futures_;
+    std::vector<RefCell<Future>> futures_;
 
 public:
     void add(Future* f) {
-        own_ptr<Future> fu;
+        RefCell<Future> fu;
         fu.reset(f);
         if (f == nullptr) {
             Log_error("Invalid Future object passed to FutureGroup!");
@@ -127,7 +127,7 @@ public:
     /**
      * NOT a refcopy! This is intended to avoid circular reference, which prevents everything from being released correctly.
      */
-    shared_ptr<own_ptr<PollMgr>> pollmgr_;
+    shared_ptr<RefCell<PollMgr>> pollmgr_;
     
     std::string host_;
     int sock_;
@@ -142,10 +142,10 @@ public:
 		
 		uint64_t packets;
 		bool clean;
-    own_ptr<Marshal::bookmark> bmark_;
+    RefCell<Marshal::bookmark> bmark_;
 
     Counter xid_counter_;
-    std::unordered_map<i64, own_ptr<Future>> pending_fu_;
+    std::unordered_map<i64, RefCell<Future>> pending_fu_;
 		std::unordered_map<i64, struct timespec> rpc_starts;
 
     SpinLock pending_fu_l_;
@@ -168,7 +168,7 @@ public:
      invalidate_pending_futures();
    }
 
-   Client(shared_ptr<own_ptr<PollMgr>> pollmgr): pollmgr_(pollmgr), sock_(-1), status_(NEW) {
+   Client(shared_ptr<RefCell<PollMgr>> pollmgr): pollmgr_(pollmgr), sock_(-1), status_(NEW) {
     bmark_.reset(nullptr);
     // if (pollmgr == nullptr) {
     //     pollmgr_.reset(new PollMgr);
@@ -236,11 +236,11 @@ class ClientPool: public NoCopy {
     rrr::Rand rand_;
 
     // refcopy
-    own_ptr<rrr::PollMgr> pollmgr_;
+    RefCell<rrr::PollMgr> pollmgr_;
 
     // guard cache_
     SpinLock l_;
-    std::map<std::string, vector<own_ptr<rrr::Client>>> cache_;
+    std::map<std::string, vector<RefCell<rrr::Client>>> cache_;
     int parallel_connections_;
 
 public:

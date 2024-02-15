@@ -108,7 +108,7 @@ int ServerConnection::run_async(const std::function<void()>& f) {
 //  return server_->threadpool_->run_async(f);
 }
 
-void ServerConnection::begin_reply(mut_ptr<Request>& req, i32 error_code /* =... */) {
+void ServerConnection::begin_reply(RefMut<Request>& req, i32 error_code /* =... */) {
   verify (status_ == CONNECTED);
     out_l_.lock();
     v32 v_error_code = error_code;
@@ -126,7 +126,7 @@ void ServerConnection::end_reply() {
     // set reply size in packet
     if (bmark_.raw_ != nullptr) {
         i32 reply_size = out_.get_and_reset_write_cnt();
-        const_ptr<Marshal::bookmark> const_bmark_ = borrow_const(bmark_);
+        RefConst<Marshal::bookmark> const_bmark_ = borrow_const(bmark_);
         out_.write_bookmark(const_bmark_, &reply_size);
         // delete bmark_;
         // bmark_ = nullptr;
@@ -163,8 +163,8 @@ bool ServerConnection::handle_read() {
     }
 
     //list<Request*> complete_requests;
-    //list<own_ptr<mut_ptr<Request>>> complete_requests;
-    list<mut_ptr<Request>> complete_requests;
+    //list<RefCell<RefMut<Request>>> complete_requests;
+    list<RefMut<Request>> complete_requests;
 
     for (;;) {
         i32 packet_size;
@@ -173,10 +173,10 @@ bool ServerConnection::handle_read() {
             // consume the packet size
             verify(in_.read(&packet_size, sizeof(i32)) == sizeof(i32));
             //Request* req = new Request;
-            own_ptr<Request> req;
+            RefCell<Request> req;
             req.reset(new Request);
             
-            mut_ptr<Request> mreq = borrow_mut(req);
+            RefMut<Request> mreq = borrow_mut(req);
 
             verify(mreq->m.read_from_marshal(in_, packet_size) == (size_t) packet_size);
 
@@ -492,7 +492,7 @@ bool ServerListener::handle_read() {
       Log_debug("server@%s got new client, fd=%d", this->addr_.c_str(), clnt_socket);
       verify(set_nonblocking(clnt_socket, true) == 0);
 
-      //TODO:  change ServerConnection server_ ptr to const_ptr
+      //TODO:  change ServerConnection server_ ptr to RefConst
       auto sconn = std::make_shared<ServerConnection>(server_.raw_, clnt_socket); 
       server_->sconns_l_.lock();
       server_->sconns_.insert(sconn);
@@ -604,7 +604,7 @@ int Server::start(const char* bind_addr) {
     string host = addr.substr(0, idx);
     string port = addr.substr(idx + 1);
 
-  own_ptr<start_server_loop_args_type> start_server_loop_args;
+  RefCell<start_server_loop_args_type> start_server_loop_args;
   start_server_loop_args.reset(new start_server_loop_args_type());
 
 #ifdef USE_IPC

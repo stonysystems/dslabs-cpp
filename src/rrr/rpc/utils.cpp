@@ -38,7 +38,7 @@ int set_nonblocking(int fd, bool nonblocking) {
 int find_open_port() {
     int fd = socket(AF_INET, SOCK_STREAM, 0);
 
-    borrow::own_ptr<addrinfo> local_addr;
+    borrow::RefCell<addrinfo> local_addr;
     addrinfo *local_addr_tmp;
 
     addrinfo hints;
