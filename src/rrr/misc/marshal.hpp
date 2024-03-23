@@ -16,6 +16,14 @@
 
 #include "base/all.hpp"
 
+
+#ifndef __BORROW_H__
+#define __BORROW_H__
+#include "utils/borrow.h"
+#endif
+
+using namespace borrow;
+
 namespace rrr {
 
 #ifdef RPC_STATISTICS
@@ -262,9 +270,9 @@ class Marshal: public NoCopy {
   size_t write_to_fd(int fd);
 
   bookmark *set_bookmark(size_t n);
-  void write_bookmark(bookmark *bm, const void *p) {
+  void write_bookmark(Ref<bookmark> bm, const void *p) {
     const char *pc = (const char *) p;
-    assert(bm != nullptr && bm->ptr != nullptr && p != nullptr);
+    assert(bm.raw_ != nullptr && bm->ptr != nullptr && p != nullptr);
     for (size_t i = 0; i < bm->size; i++) {
       *(bm->ptr[i]) = pc[i];
     }

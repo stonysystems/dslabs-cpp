@@ -32,6 +32,10 @@ def emit_service_and_proxy(service, f, rpc_table):
                 rpc_code = rpc_table["%s.%s" % (service.name, func.name)]
                 f.writeln("%s = %s," % (func.name.upper(), hex(rpc_code)))
         f.writeln("};")
+        f.writeln()
+        # f.writeln("RefCell<%sService> %s__ptr__;" % (service.name, service.name.lower()))
+        # f.writeln("Ref<%sService> %s__cptr__ = borrow_const(%s__ptr__);" % (service.name, service.name.lower(), service.name.lower()))
+        # f.writeln()
         f.writeln("int __reg_to__(rrr::Server* svr) {")
         with f.indent():
             f.writeln("int ret = 0;")
@@ -39,7 +43,7 @@ def emit_service_and_proxy(service, f, rpc_table):
                 if func.attr == "raw":
                     f.writeln("if ((ret = svr->reg(%s, this, &%sService::%s)) != 0) {" % (func.name.upper(), service.name, func.name))
                 else:
-                    f.writeln("if ((ret = svr->reg(%s, this, &%sService::__%s__wrapper__)) != 0) {" % (func.name.upper(), service.name, func.name))
+                    f.writeln("if ((ret = svr->reg(%s,this, &%sService::__%s__wrapper__)) != 0) {" % (func.name.upper(), service.name, func.name))
                 with f.indent():
                     f.writeln("goto err;")
                 f.writeln("}")
@@ -203,7 +207,7 @@ def emit_service_and_proxy(service, f, rpc_table):
                         for param in sync_out_params:
                             f.writeln("__fu__->get_reply() >> *%s;" % param)
                     f.writeln("}")
-                f.writeln("__fu__->release();")
+                # f.writeln("__fu__->release();")
                 f.writeln("return __ret__;")
             f.writeln("}")
     f.writeln("};")

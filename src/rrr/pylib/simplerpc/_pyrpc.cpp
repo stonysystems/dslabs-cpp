@@ -30,8 +30,8 @@ static PyObject* _pyrpc_init_server(PyObject* self, PyObject* args) {
     ThreadPool* thrpool = new ThreadPool(n_threads);
     Log_debug("created rrr::Server with %d worker threads", n_threads);
     Server* svr = new Server(poll_mgr, thrpool);
-    thrpool->release();
-    poll_mgr->release();
+    //thrpool->release();
+    //poll_mgr->release();
     return Py_BuildValue("k", svr);
 }
 
@@ -108,7 +108,10 @@ static PyObject* _pyrpc_server_reg(PyObject* self, PyObject* args) {
             }
         }
 
-        sconn->begin_reply(req, error_code);
+        RefCell<Request> rreq; rreq.reset(req);
+        RefMut<Request> mreq= borrow_mut(rreq);
+
+        sconn->begin_reply(mreq, error_code);
         if (output_m != NULL) {
             *sconn << *output_m;
         }
@@ -138,8 +141,12 @@ static PyObject* _pyrpc_init_client(PyObject* self, PyObject* args) {
     unsigned long u;
     if (!PyArg_ParseTuple(args, "k", &u))
         return NULL;
-    PollMgr* poll = (PollMgr*) u;
-    auto x = std::make_shared<Client>(poll);
+    // RefCell<PollMgr> poll;
+    // poll.reset((PollMgr*) u);
+    shared_ptr<RefCell<PollMgr>> c_poll(new RefCell<PollMgr>((PollMgr*) u));
+    //shared_ptr<PollMgr> c_poll((PollMgr*) u);
+    // Ref<PollMgr> c_poll;
+    auto x = std::make_shared<Client>(c_poll);
   clients.push_back(x);
   Client* clnt = x.get();
   return Py_BuildValue("k", clnt);
@@ -229,7 +236,7 @@ static PyObject* _pyrpc_client_sync_call(PyObject* self, PyObject* args) {
         if (error_code == 0) {
             m_rep->read_from_marshal(fu->get_reply(), fu->get_reply().content_size());
         }
-        fu->release();
+        //fu->release();
     }
 
     PyEval_RestoreThread(_save);
@@ -476,7 +483,7 @@ static PyObject* _pyrpc_future_wait(PyObject* self, PyObject* args) {
         if (error_code == 0) {
             m_rep->read_from_marshal(fu->get_reply(), fu->get_reply().content_size());
         }
-        fu->release();
+        //fu->release();
     }
 
     PyEval_RestoreThread(_save);
@@ -508,7 +515,7 @@ static PyObject* _pyrpc_future_timedwait(PyObject* self, PyObject* args) {
         if (error_code == 0) {
             m_rep->read_from_marshal(fu->get_reply(), fu->get_reply().content_size());
         }
-        fu->release();
+        //fu->release();
     }
 
     PyEval_RestoreThread(_save);

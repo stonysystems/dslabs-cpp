@@ -7,6 +7,14 @@
 #include "reactor/epoll_wrapper.h"
 #include "reactor/reactor.h"
 
+
+#ifndef __BORROW_H__
+#define __BORROW_H__
+#include "utils/borrow.h"
+#endif
+
+using namespace borrow;
+
 namespace rrr {
 
 class Future;
@@ -19,7 +27,7 @@ struct FutureAttr {
     std::function<void(Future*)> callback;
 };
 
-class Future: public RefCounted {
+class Future {
     friend class Client;
 
     i64 xid_;
@@ -34,14 +42,7 @@ class Future: public RefCounted {
     pthread_mutex_t ready_m_;
 
     void notify_ready();
-
-protected:
-
-    // protected destructor as required by RefCounted.
-    ~Future() {
-        Pthread_mutex_destroy(&ready_m_);
-        Pthread_cond_destroy(&ready_cond_);
-    }
+    
 
 public:
 
@@ -49,6 +50,11 @@ public:
             : xid_(xid), error_code_(0), attr_(attr), ready_(false), timed_out_(false) {
         Pthread_mutex_init(&ready_m_, nullptr);
         Pthread_cond_init(&ready_cond_, nullptr);
+    }
+
+    ~Future() {
+        Pthread_mutex_destroy(&ready_m_);
+        Pthread_cond_destroy(&ready_cond_);
     }
 
     bool ready() {
@@ -78,23 +84,26 @@ public:
     }
 
     static inline void safe_release(Future* fu) {
-        if (fu != nullptr) {
-            fu->release();
-        }
+        // if (fu != nullptr) {
+        //     fu->release();
+        // }
     }
 };
 
 class FutureGroup {
 private:
-    std::vector<Future*> futures_;
+    std::vector<RefCell<Future>> futures_;
 
 public:
     void add(Future* f) {
+        RefCell<Future> fu;
+        fu.reset(f);
         if (f == nullptr) {
             Log_error("Invalid Future object passed to FutureGroup!");
             return;
         }
-        futures_.push_back(f);
+
+        futures_.push_back(std::move(fu));
     }
 
     void wait_all() {
@@ -104,10 +113,10 @@ public:
     }
 
     ~FutureGroup() {
-        wait_all();
-        for (auto& f : futures_) {
-            f->release();
-        }
+        // wait_all();
+        // for (auto& f : futures_) {
+        //     f->release();
+        // }
     }
 };
 
@@ -118,7 +127,7 @@ public:
     /**
      * NOT a refcopy! This is intended to avoid circular reference, which prevents everything from being released correctly.
      */
-    PollMgr* pollmgr_;
+    shared_ptr<RefCell<PollMgr>> pollmgr_;
     
     std::string host_;
     int sock_;
@@ -133,10 +142,10 @@ public:
 		
 		uint64_t packets;
 		bool clean;
-    Marshal::bookmark* bmark_;
+    RefCell<Marshal::bookmark> bmark_;
 
     Counter xid_counter_;
-    std::unordered_map<i64, Future*> pending_fu_;
+    std::unordered_map<i64, RefCell<Future>> pending_fu_;
 		std::unordered_map<i64, struct timespec> rpc_starts;
 
     SpinLock pending_fu_l_;
@@ -159,7 +168,14 @@ public:
      invalidate_pending_futures();
    }
 
-   Client(PollMgr* pollmgr): pollmgr_(pollmgr), sock_(-1), status_(NEW), bmark_(nullptr) { }
+   Client(shared_ptr<RefCell<PollMgr>> pollmgr): pollmgr_(pollmgr), sock_(-1), status_(NEW) {
+    bmark_.reset(nullptr);
+    // if (pollmgr == nullptr) {
+    //     pollmgr_.reset(new PollMgr);
+    // } else {
+    //     pollmgr_.reset((PollMgr*) pollmgr);
+    // }
+   }
 
     /**
      * Start a new request. Must be paired with end_request(), even if nullptr returned.
@@ -220,11 +236,11 @@ class ClientPool: public NoCopy {
     rrr::Rand rand_;
 
     // refcopy
-    rrr::PollMgr* pollmgr_;
+    RefCell<rrr::PollMgr> pollmgr_;
 
     // guard cache_
     SpinLock l_;
-    std::map<std::string, rrr::Client**> cache_;
+    std::map<std::string, vector<RefCell<rrr::Client>>> cache_;
     int parallel_connections_;
 
 public:

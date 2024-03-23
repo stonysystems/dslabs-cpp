@@ -705,7 +705,7 @@ void PollMgr::slow(uint32_t sleep_usec) {
   }
 }
 
-void PollMgr::resume() {
+void PollMgr::resume()  {
   for (int idx = 0; idx < n_threads_; idx++) {
     poll_threads_[idx].sleep_usec_ = 0;
     poll_threads_[idx].resume();

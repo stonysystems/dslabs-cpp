@@ -78,21 +78,25 @@ void Client::set_valid(bool valid) {
 }
 
 void Client::invalidate_pending_futures() {
-	list<Future*> futures;
+	list<RefCell<Future>> futures;
   pending_fu_l_.lock();
   for (auto& it: pending_fu_) {
-    futures.push_back(it.second);
+
+    // RefCell<Future> p_fu_;
+    // p_fu_.reset(it.second);
+
+    futures.push_back(std::move(it.second));
   }
   pending_fu_.clear();
   pending_fu_l_.unlock();
 
   for (auto& fu: futures) {
-    if (fu != nullptr) {
+    if (fu.raw_ != nullptr) {
       fu->error_code_ = ENOTCONN;
       fu->notify_ready();
 
       // since we removed it from pending_fu_
-      fu->release();
+      // fu->release();
     }
   }
 }
@@ -100,7 +104,7 @@ void Client::invalidate_pending_futures() {
 void Client::close() {
   //Log_info("CLOSING");
   if (status_ == CONNECTED) {
-    pollmgr_->remove(shared_from_this());
+    pollmgr_->raw_->remove(shared_from_this());
     ::close(sock_);
   }
   status_ = CLOSED;
@@ -180,8 +184,8 @@ int Client::connect(const char* addr, bool client) {
   Log_debug("rrr::Client: connected to %s", addr);
 
   status_ = CONNECTED;
-  pollmgr_->add(shared_from_this());
-
+  // pollmgr_->add(shared_from_this());
+  pollmgr_->raw_->add(shared_from_this());
   return 0;
 }
 
@@ -203,7 +207,7 @@ void Client::handle_write() {
   out_.write_to_fd(sock_);
 	
   if (out_.empty()) {
-    pollmgr_->update_mode(shared_from_this(), Pollable::READ);
+    pollmgr_->raw_->update_mode(shared_from_this(), Pollable::READ);
   }
   out_l_.unlock();
 	/*clock_gettime(CLOCK_MONOTONIC, &end2);
@@ -245,13 +249,13 @@ bool Client::handle_read(){
       in_ >> v_reply_xid >> v_error_code;
 
       pending_fu_l_.lock();
-      unordered_map<i64, Future*>::iterator
-          it = pending_fu_.find(v_reply_xid.get());
+      unordered_map<i64, RefCell<Future>>::iterator it = pending_fu_.find(v_reply_xid.get());
       if (it != pending_fu_.end()) {
-        Future* fu = it->second;
+        // RefCell<Future> fu;
+        // fu.reset(it->second);
+        RefMut<Future> fu = borrow_mut(it->second); // TODO
+
         verify(fu->xid_ == v_reply_xid.get());
-        pending_fu_.erase(it);
-        pending_fu_l_.unlock();
 
         fu->error_code_ = v_error_code.get();
         fu->reply_.read_from_marshal(in_,
@@ -259,9 +263,11 @@ bool Client::handle_read(){
                                          - v_error_code.val_size());
 
         fu->notify_ready();
-
+        fu.reset();
+        pending_fu_.erase(it);
+        pending_fu_l_.unlock();
         // since we removed it from pending_fu_
-        fu->release();
+        // fu->release();
       } else {
         // the future might timed out
         pending_fu_l_.unlock();
@@ -337,10 +343,10 @@ iters = 5;
       in_ >> v_reply_xid >> v_error_code;
 
       pending_fu_l_.lock();
-      unordered_map<i64, Future*>::iterator
-        it = pending_fu_.find(v_reply_xid.get());
+      unordered_map<i64, RefCell<Future>>::iterator it = pending_fu_.find(v_reply_xid.get());
+
       if(it != pending_fu_.end()){
-        Future* fu = it->second;
+        RefMut<Future> fu = borrow_mut(it->second);
         verify(fu->xid_ == v_reply_xid.get());
 
 				
@@ -371,8 +377,6 @@ iters = 5;
 					time_ = 0;
 				}*/
 
-        pending_fu_.erase(it);
-        pending_fu_l_.unlock();
 				
 				fu->error_code_ = v_error_code.get();
         fu->reply_.read_from_marshal(in_,
@@ -380,7 +384,10 @@ iters = 5;
 				         - v_error_code.val_size());
         
 				fu->notify_ready();
-        fu->release();
+        fu.reset();
+        pending_fu_.erase(it);
+        pending_fu_l_.unlock();
+        //fu->release();
       } else{
         pending_fu_l_.unlock();
 				
@@ -470,7 +477,8 @@ void Client::handle_free(i64 xid) {
   auto it = pending_fu_.find(xid);
   if (it != pending_fu_.end()) {
     pending_fu_.erase(it);
-    Future::safe_release(it->second);
+    //Future::safe_release(it->second);
+    it->second.reset();
   }
   pending_fu_l_.unlock();
 }
@@ -489,15 +497,19 @@ Future* Client::begin_request(i32 rpc_id, const FutureAttr& attr /* =... */) {
   //auto start = chrono::steady_clock::now();
 	
   out_l_.lock();
-	
   if (status_ != CONNECTED) {
     //Log_info("NOT CONNECTED");
     return nullptr;
   }
 
-  Future* fu = new Future(xid_counter_.next(), attr);
+  RefCell<Future> fu;
+  fu.reset(new Future(xid_counter_.next(), attr));
+
+  auto xid_copy = fu->xid_;
+  
   pending_fu_l_.lock();
-  pending_fu_[fu->xid_] = fu;
+  pending_fu_.insert(std::make_pair(xid_copy, std::move(fu)));
+
   pending_fu_l_.unlock();
 
 	struct timespec begin;
@@ -507,9 +519,9 @@ Future* Client::begin_request(i32 rpc_id, const FutureAttr& attr /* =... */) {
   // check if the client gets closed in the meantime
   if (status_ != CONNECTED) {
     pending_fu_l_.lock();
-    unordered_map<i64, Future*>::iterator it = pending_fu_.find(fu->xid_);
+    unordered_map<i64, RefCell<Future>>::iterator it = pending_fu_.find(xid_copy);
     if (it != pending_fu_.end()) {
-      it->second->release();
+      //it->second->release();
       pending_fu_.erase(it);
     }
     pending_fu_l_.unlock();
@@ -518,9 +530,9 @@ Future* Client::begin_request(i32 rpc_id, const FutureAttr& attr /* =... */) {
     return nullptr;
   }
 
-  bmark_ = out_.set_bookmark(sizeof(i32)); // will fill packet size later
+  bmark_.reset(out_.set_bookmark(sizeof(i32))); // will fill packet size later
 
-  *this << v64(fu->xid_);
+  *this << v64(xid_copy);
   *this << rpc_id;
 	rpc_id_ = rpc_id;
 
@@ -529,17 +541,20 @@ Future* Client::begin_request(i32 rpc_id, const FutureAttr& attr /* =... */) {
   //Log_info("The Time for begin_request is: %d", duration);
   //Log_info("EXITING begin_request");
   // one ref is already in pending_fu_
-  return (Future*) fu->ref_copy();
+  // return (Future*) fu->ref_copy();
+  return pending_fu_[xid_copy].raw_; // TODO, fix this
 }
 
 void Client::end_request() {
   //auto start = chrono::steady_clock::now();
   // set reply size in packet
-  if (bmark_ != nullptr) {
+  if (bmark_.raw_ != nullptr) {
     i32 request_size = out_.get_and_reset_write_cnt();
-    out_.write_bookmark(bmark_, &request_size);
-    delete bmark_;
-    bmark_ = nullptr;
+    Ref<Marshal::bookmark> const_bmark_ = borrow_const(bmark_);
+    out_.write_bookmark(const_bmark_, &request_size);
+    const_bmark_.reset();
+    // delete bmark_;
+    // bmark_ = nullptr;
   }
 
 	out_.found_dep = false;
@@ -547,7 +562,7 @@ void Client::end_request() {
 
   // always enable write events since the code above gauranteed there
   // will be some data to send
-  pollmgr_->update_mode(shared_from_this(), Pollable::READ | Pollable::WRITE);
+  pollmgr_->raw_->update_mode(shared_from_this(), Pollable::READ | Pollable::WRITE);
 
   out_l_.unlock();
 			
@@ -563,9 +578,9 @@ ClientPool::ClientPool(PollMgr* pollmgr /* =? */,
 
   verify(parallel_connections_ > 0);
   if (pollmgr == nullptr) {
-    pollmgr_ = new PollMgr;
+    pollmgr_.reset(new PollMgr);
   } else {
-    pollmgr_ = (PollMgr*) pollmgr->ref_copy();
+    pollmgr_.reset((PollMgr*) pollmgr);
   }
 }
 
@@ -574,42 +589,53 @@ ClientPool::~ClientPool() {
     for (int i = 0; i < parallel_connections_; i++) {
       it.second[i]->close_and_release();
     }
-    delete[] it.second;
+    // delete[] it.second;
   }
-  pollmgr_->release();
+  //pollmgr_->release();
 }
 
 Client* ClientPool::get_client(const string& addr) {
-  Client* cl = nullptr;
+  RefCell<Client> cl;
+  cl.reset(nullptr);
   l_.lock();
-  map<string, Client**>::iterator it = cache_.find(addr);
+  map<string, vector<RefCell<Client>>>::iterator it = cache_.find(addr);
   if (it != cache_.end()) {
-    cl = it->second[rand_() % parallel_connections_];
+    cl.reset(it->second[rand_() % parallel_connections_].raw_);
   } else {
-    Client** parallel_clients = new Client* [parallel_connections_];
+    vector<RefCell<Client>> parallel_clients(parallel_connections_);
+
+    
+    //Client** parallel_clients = new Client* [parallel_connections_];
     int i;
     bool ok = true;
     for (i = 0; i < parallel_connections_; i++) {
-      parallel_clients[i] = new Client(this->pollmgr_);
-      if (parallel_clients[i]->connect(addr.c_str()) != 0) {
+      // Ref<PollMgr> cpmgr_ = borrow_const(pollmgr_);
+      shared_ptr<RefCell<PollMgr>> cpmgr_(new RefCell<PollMgr>(pollmgr_.raw_));
+
+      RefCell<Client> client_ptr_(new Client(cpmgr_));
+
+      if (client_ptr_->connect(addr.c_str()) != 0) {
         ok = false;
         break;
       }
+      parallel_clients.push_back(std::move(client_ptr_));
+      
     }
     if (ok) {
-      cl = parallel_clients[rand_() % parallel_connections_];
-      insert_into_map(cache_, addr, parallel_clients);
+      cl.reset(parallel_clients[rand_() % parallel_connections_].raw_);
+      cache_.insert(std::make_pair(addr, std::move(parallel_clients)));
+      //insert_into_map(cache_, addr, parallel_clients);
     } else {
       // close connections
       while (i >= 0) {
         parallel_clients[i]->close_and_release();
         i--;
       }
-      delete[] parallel_clients;
+      //delete[] parallel_clients;
     }
   }
   l_.unlock();
-  return cl;
+  return cl.raw_;
 }
 
 } // namespace rrr

@@ -87,8 +87,10 @@ SpinLock ServerConnection::rpc_id_missing_l_s;
 
 
 ServerConnection::ServerConnection(Server* server, int socket)
-        : server_(server), socket_(socket), bmark_(nullptr), status_(CONNECTED) {
+        : socket_(socket), status_(CONNECTED) {
     // increase number of open connections
+    bmark_.reset(nullptr);
+    server_.reset(server);
     server_->sconns_ctr_.next(1);
 }
 
@@ -106,13 +108,13 @@ int ServerConnection::run_async(const std::function<void()>& f) {
 //  return server_->threadpool_->run_async(f);
 }
 
-void ServerConnection::begin_reply(Request* req, i32 error_code /* =... */) {
+void ServerConnection::begin_reply(RefMut<Request>& req, i32 error_code /* =... */) {
   verify (status_ == CONNECTED);
     out_l_.lock();
     v32 v_error_code = error_code;
     v64 v_reply_xid = req->xid;
 
-    bmark_ = this->out_.set_bookmark(sizeof(i32)); // will write reply size later
+    bmark_.reset(this->out_.set_bookmark(sizeof(i32))); // will write reply size later
 
     *this << v_reply_xid;
     *this << v_error_code;
@@ -122,11 +124,13 @@ void ServerConnection::end_reply() {
   verify (status_ == CONNECTED);
 
     // set reply size in packet
-    if (bmark_ != nullptr) {
+    if (bmark_.raw_ != nullptr) {
         i32 reply_size = out_.get_and_reset_write_cnt();
-        out_.write_bookmark(bmark_, &reply_size);
-        delete bmark_;
-        bmark_ = nullptr;
+        Ref<Marshal::bookmark> const_bmark_ = borrow_const(bmark_);
+        out_.write_bookmark(const_bmark_, &reply_size);
+        // delete bmark_;
+        // bmark_ = nullptr;
+        const_bmark_.reset();
     }
 
     // always enable write events since the code above gauranteed there
@@ -158,7 +162,9 @@ bool ServerConnection::handle_read() {
         return false;
     }
 
-    list<Request*> complete_requests;
+    //list<Request*> complete_requests;
+    //list<RefCell<RefMut<Request>>> complete_requests;
+    list<RefMut<Request>> complete_requests;
 
     for (;;) {
         i32 packet_size;
@@ -166,14 +172,19 @@ bool ServerConnection::handle_read() {
         if (n_peek == sizeof(i32) && in_.content_size() >= packet_size + sizeof(i32)) {
             // consume the packet size
             verify(in_.read(&packet_size, sizeof(i32)) == sizeof(i32));
+            //Request* req = new Request;
+            RefCell<Request> req;
+            req.reset(new Request);
+            
+            RefMut<Request> mreq = borrow_mut(req);
 
-            Request* req = new Request;
-            verify(req->m.read_from_marshal(in_, packet_size) == (size_t) packet_size);
+            verify(mreq->m.read_from_marshal(in_, packet_size) == (size_t) packet_size);
 
             v64 v_xid;
-            req->m >> v_xid;
-            req->xid = v_xid.get();
-            complete_requests.push_back(req);
+            mreq->m >> v_xid;
+            mreq->xid = v_xid.get();
+
+            complete_requests.push_back(std::move(mreq));
 
         } else {
             // packet not complete or there's no more packet to process
@@ -187,11 +198,13 @@ bool ServerConnection::handle_read() {
 
     for (auto& req: complete_requests) {
 
+        
+       
         if (req->m.content_size() < sizeof(i32)) {
             // rpc id not provided
             begin_reply(req, EINVAL);
             end_reply();
-            delete req;
+            //delete req;
             continue;
         }
 
@@ -209,7 +222,7 @@ bool ServerConnection::handle_read() {
             auto x = dynamic_pointer_cast<ServerConnection>(shared_from_this());
             auto y = it->second;
 						//Log_info("CreateRunning: %x", rpc_id);
-            Coroutine::CreateRun([y, req, x, this, rpc_id] () {
+            Coroutine::CreateRun([y, &req, x, this, rpc_id] () { // capture creq by reference
 //              verify(x);
               verify(x->connected());
 
@@ -221,7 +234,7 @@ bool ServerConnection::handle_read() {
                   //ev->Wait(1); // timeout after 100 ms
 	      }*/
 //#endif
-              y(req, x.get());
+              y(req.raw_, x.get());
 							/*if (req != nullptr && !req->m.valid_id) {
 								if (count % 100000 == 0) {
 									if (req->m.found_dep) {
@@ -261,11 +274,13 @@ bool ServerConnection::handle_read() {
             if (!surpress_warning) {
                 Log_error("rrr::ServerConnection: no handler for rpc_id=0x%08x", rpc_id);
             }
+
             begin_reply(req, ENOENT);
             end_reply();
-            delete req;
+            //delete req;
         }
     }
+
   // This is a workaround, the Loop call should really happen
   // between handle_read and handle_write in the epoll loop
   Reactor::GetReactor()->Loop();
@@ -339,9 +354,9 @@ Server::Server(PollMgr* pollmgr /* =... */, ThreadPool* thrpool /* =? */)
     memset(&loop_th_, 0, sizeof(loop_th_));
 
     if (pollmgr == nullptr) {
-        pollmgr_ = new PollMgr;
+        pollmgr_ .reset(new PollMgr);
     } else {
-        pollmgr_ = (PollMgr *) pollmgr->ref_copy();
+        pollmgr_.reset(pollmgr);
     }
 
 //    if (thrpool == nullptr) {
@@ -391,8 +406,7 @@ Server::~Server() {
     verify(sconns_ctr_.peek_next() == 0);
 
 //    threadpool_->release();
-    pollmgr_->release();
-
+//    pollmgr_->release();
     //Log_debug("rrr::Server: destroyed");
 }
 
@@ -478,7 +492,8 @@ bool ServerListener::handle_read() {
       Log_debug("server@%s got new client, fd=%d", this->addr_.c_str(), clnt_socket);
       verify(set_nonblocking(clnt_socket, true) == 0);
 
-      auto sconn = std::make_shared<ServerConnection>(server_, clnt_socket);
+      //TODO:  change ServerConnection server_ ptr to Ref
+      auto sconn = std::make_shared<ServerConnection>(server_.raw_, clnt_socket); 
       server_->sconns_l_.lock();
       server_->sconns_.insert(sconn);
       server_->pollmgr_->add(sconn);
@@ -495,7 +510,7 @@ void ServerListener::close() {
 }
 
 ServerListener::ServerListener(Server* server, string addr) {
-  server_ = server;
+  server_.reset(server);
   addr_ = addr;
   size_t idx = addr.find(":");
   if (idx == string::npos) {
@@ -557,8 +572,10 @@ ServerListener::ServerListener(Server* server, string addr) {
     Log_error("rrr::Server: bind(): %s", strerror(errno));
     freeaddrinfo(result);
   } else {
-    p_gai_result_ = result;
-    p_svr_addr_ = rp;
+    // p_gai_result_ = result;
+    // p_svr_addr_ = rp;
+    p_gai_result_.reset(result);
+    p_svr_addr_.reset(rp);
   }
 #endif
 
@@ -587,7 +604,9 @@ int Server::start(const char* bind_addr) {
     string host = addr.substr(0, idx);
     string port = addr.substr(idx + 1);
 
-  start_server_loop_args_type* start_server_loop_args = new start_server_loop_args_type();
+  RefCell<start_server_loop_args_type> start_server_loop_args;
+  start_server_loop_args.reset(new start_server_loop_args_type());
+
 #ifdef USE_IPC
   struct sockaddr_un saun;
   if ((server_sock_ = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
@@ -655,7 +674,7 @@ int Server::start(const char* bind_addr) {
     status_ = RUNNING;
     Log_info("rrr::Server: started on %s", bind_addr);
 
-    Pthread_create(&loop_th_, nullptr, Server::start_server_loop, start_server_loop_args);
+    Pthread_create(&loop_th_, nullptr, Server::start_server_loop, start_server_loop_args.raw_); // pass raw pointer to different func signature
 
     return 0;
 }
@@ -671,7 +690,7 @@ int Server::reg(i32 rpc_id, const std::function<void(Request*, ServerConnection*
     return 0;
 }
 
-void Server::unreg(i32 rpc_id) {
+void Server::unreg(i32 rpc_id)  {
     handlers_.erase(rpc_id);
 }
 

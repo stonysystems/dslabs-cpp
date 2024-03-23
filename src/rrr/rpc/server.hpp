@@ -1,5 +1,6 @@
 #pragma once
 
+
 #include <unordered_map>
 #include <unordered_set>
 #include <pthread.h>
@@ -13,6 +14,12 @@
 #include "reactor/epoll_wrapper.h"
 #include "reactor/reactor.h"
 
+#ifndef __BORROW_H__
+#define __BORROW_H__
+#include "utils/borrow.h"
+#endif
+
+using namespace borrow;
 // for getaddrinfo() used in Server::start()
 //struct addrinfo;
 
@@ -43,11 +50,13 @@ class ServerListener: public Pollable {
   friend class Server;
  public:
   std:: string addr_;
-  Server* server_;
+  RefCell<Server> server_;
   // cannot use smart pointers for memory management because this pointer
   // needs to be freed by freeaddrinfo.
-  struct addrinfo* p_gai_result_{nullptr};
-  struct addrinfo* p_svr_addr_{nullptr};
+  // struct addrinfo* p_gai_result_{nullptr};
+  // struct addrinfo* p_svr_addr_{nullptr};
+  struct RefCell<addrinfo> p_gai_result_;
+  struct RefCell<addrinfo> p_svr_addr_;
 
   int server_sock_{0};
   int poll_mode() {
@@ -70,11 +79,11 @@ class ServerListener: public Pollable {
   ServerListener(Server* s, std::string addr);
 //protected:
   virtual ~ServerListener() {
-    if (p_gai_result_ != nullptr) {
-      freeaddrinfo(p_gai_result_);
-      p_gai_result_ = nullptr;
-      p_svr_addr_ = nullptr;
-    }
+    // if (p_gai_result_ != nullptr) {
+    //   freeaddrinfo(p_gai_result_);
+    //   p_gai_result_ = nullptr;
+    //   p_svr_addr_ = nullptr;
+    // }
   };
 };
 
@@ -85,10 +94,10 @@ class ServerConnection: public Pollable {
     Marshal in_, out_;
     SpinLock out_l_;
 
-    Server* server_;
+    RefCell<Server> server_;
     int socket_;
 
-    Marshal::bookmark* bmark_;
+    RefCell<Marshal::bookmark> bmark_;
 
     enum {
         CONNECTED, CLOSED
@@ -110,7 +119,7 @@ public:
 	int count = 0;
 	
   // Protected destructor as required by RefCounted.
-  ~ServerConnection();
+  virtual ~ServerConnection();
 
   ServerConnection(Server* server, int socket);
 
@@ -132,7 +141,8 @@ public:
      * ENOENT: method not found
      * EINVAL: invalid packet (field missing)
      */
-    void begin_reply(Request* req, i32 error_code = 0);
+    //void begin_reply(Request* req, i32 error_code = 0);
+    void begin_reply(RefMut<Request>& req, i32 error_code = 0);
 
     void end_reply();
 
@@ -171,28 +181,33 @@ public:
 };
 
 class DeferredReply: public NoCopy {
-    rrr::Request* req_;
-    ServerConnection* sconn_; // cannot delete this because of legacy reasons: need to modify the rpc compiler.
+    //rrr::Request* req_;
+    RefCell<Request> req_;
+    RefCell<ServerConnection> sp_sconn_;
     std::function<void()> marshal_reply_;
     std::function<void()> cleanup_;
 //    std::weak_ptr<ServerConnection> wp_sconn_;
-    std::shared_ptr<ServerConnection> sp_sconn_{};
+
+    ServerConnection* sconn_; // cannot delete this because of legacy reasons: need to modify the rpc compiler.
 
  public:
 
     DeferredReply(rrr::Request* req, ServerConnection* sconn,
                   const std::function<void()>& marshal_reply, const std::function<void()>& cleanup)
-        : req_(req), sconn_(sconn), marshal_reply_(marshal_reply), cleanup_(cleanup) {
-      sp_sconn_ = std::dynamic_pointer_cast<ServerConnection>(sconn->shared_from_this());
-      auto x = sp_sconn_;
-      verify(x);
+        : sconn_(sconn), marshal_reply_(marshal_reply), cleanup_(cleanup) {
+
+      req_.reset(req);
+      sp_sconn_.reset(sconn);
+      //sp_sconn_ = std::dynamic_pointer_cast<ServerConnection>(sconn->shared_from_this());
+      //auto x = sp_sconn_;
+      verify(sp_sconn_.raw_);
     }
 
     ~DeferredReply() {
         cleanup_();
-        delete req_;
-        req_ = nullptr;
-        sp_sconn_.reset();
+        // delete req_;
+        // req_ = nullptr;
+        // sp_sconn_.reset();
     }
 
     int run_async(const std::function<void()>& f) {
@@ -203,10 +218,11 @@ class DeferredReply: public NoCopy {
 
     void reply() {
 //      auto sconn = wp_sconn_.lock();
-      verify(sp_sconn_);
-      auto sconn = sp_sconn_;
-      if (sconn && sconn->connected()) {
-        sconn->begin_reply(req_);
+      verify(sp_sconn_.raw_);
+      auto sconn = borrow_mut(sp_sconn_);
+      if (sconn.raw_ && sconn->connected()) {
+        RefMut<Request> mreq_ = borrow_mut(req_);
+        sconn->begin_reply(mreq_);
         marshal_reply_();
         sconn->end_reply();
       } else {
@@ -223,9 +239,12 @@ class DeferredReply: public NoCopy {
 class Server: public NoCopy {
     friend class ServerConnection;
  public:
+    //std::unordered_map<i32, std::function<void(Request*, ServerConnection*)>> handlers_;
     std::unordered_map<i32, std::function<void(Request*, ServerConnection*)>> handlers_;
-    PollMgr* pollmgr_;
-    ThreadPool* threadpool_;
+
+    RefCell<PollMgr> pollmgr_;
+    RefCell<ThreadPool> threadpool_;
+
     int server_sock_;
 
     Counter sconns_ctr_;
@@ -252,6 +271,7 @@ public:
     int start(const char* bind_addr);
 
     int reg(Service* svc) {
+        //Ref<Server> const_svr_ptr_ = borrow_const(svr_ptr_);
         return svc->__reg_to__(this);
     }
 
@@ -289,8 +309,7 @@ public:
         return 0;
     }
 
-    void unreg(i32 rpc_id);
+    void unreg(i32 rpc_id)  ;
 };
 
 } // namespace rrr
-

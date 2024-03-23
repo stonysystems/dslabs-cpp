@@ -61,6 +61,14 @@
     "memory_resource": "cpp",
     "random": "cpp",
     "set": "cpp",
-    "string": "cpp"
+    "string": "cpp",
+    "valarray": "cpp",
+    "*.ipp": "cpp",
+    "variant": "cpp",
+    "cassert": "cpp",
+    "strstream": "cpp",
+    "bit": "cpp",
+    "codecvt": "cpp",
+    "cfenv": "cpp"
   }
 }
