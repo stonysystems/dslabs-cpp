@@ -271,7 +271,7 @@ public:
     int start(const char* bind_addr);
 
     int reg(Service* svc) {
-        //RefConst<Server> const_svr_ptr_ = borrow_const(svr_ptr_);
+        //Ref<Server> const_svr_ptr_ = borrow_const(svr_ptr_);
         return svc->__reg_to__(this);
     }
 

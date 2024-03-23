@@ -126,7 +126,7 @@ void ServerConnection::end_reply() {
     // set reply size in packet
     if (bmark_.raw_ != nullptr) {
         i32 reply_size = out_.get_and_reset_write_cnt();
-        RefConst<Marshal::bookmark> const_bmark_ = borrow_const(bmark_);
+        Ref<Marshal::bookmark> const_bmark_ = borrow_const(bmark_);
         out_.write_bookmark(const_bmark_, &reply_size);
         // delete bmark_;
         // bmark_ = nullptr;
@@ -492,7 +492,7 @@ bool ServerListener::handle_read() {
       Log_debug("server@%s got new client, fd=%d", this->addr_.c_str(), clnt_socket);
       verify(set_nonblocking(clnt_socket, true) == 0);
 
-      //TODO:  change ServerConnection server_ ptr to RefConst
+      //TODO:  change ServerConnection server_ ptr to Ref
       auto sconn = std::make_shared<ServerConnection>(server_.raw_, clnt_socket); 
       server_->sconns_l_.lock();
       server_->sconns_.insert(sconn);

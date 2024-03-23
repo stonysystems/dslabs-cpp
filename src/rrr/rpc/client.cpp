@@ -550,7 +550,7 @@ void Client::end_request() {
   // set reply size in packet
   if (bmark_.raw_ != nullptr) {
     i32 request_size = out_.get_and_reset_write_cnt();
-    RefConst<Marshal::bookmark> const_bmark_ = borrow_const(bmark_);
+    Ref<Marshal::bookmark> const_bmark_ = borrow_const(bmark_);
     out_.write_bookmark(const_bmark_, &request_size);
     const_bmark_.reset();
     // delete bmark_;
@@ -609,7 +609,7 @@ Client* ClientPool::get_client(const string& addr) {
     int i;
     bool ok = true;
     for (i = 0; i < parallel_connections_; i++) {
-      // RefConst<PollMgr> cpmgr_ = borrow_const(pollmgr_);
+      // Ref<PollMgr> cpmgr_ = borrow_const(pollmgr_);
       shared_ptr<RefCell<PollMgr>> cpmgr_(new RefCell<PollMgr>(pollmgr_.raw_));
 
       RefCell<Client> client_ptr_(new Client(cpmgr_));
