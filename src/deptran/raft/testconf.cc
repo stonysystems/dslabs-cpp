@@ -197,7 +197,7 @@ uint64_t RaftTestConfig::DoAgreement(int cmd, int n, bool retry) {
       // If Start() successfully called, wait for agreement
       auto start2 = chrono::steady_clock::now();
       int nc;
-      while ((chrono::steady_clock::now() - start2) < chrono::seconds{10}) {
+      while ((chrono::steady_clock::now() - start2) < chrono::seconds{2}) {
         nc = NCommitted(index);
         if (nc < 0) {
           break;

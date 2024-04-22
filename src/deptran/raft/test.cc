@@ -582,7 +582,7 @@ int RaftLabTest::testFigure8(void) {
     config_->Reconnect(leader1);
     verify((leader1 + 4) % NSERVERS != leader2);
     config_->Reconnect((leader1 + 4) % NSERVERS);
-    if (leader2 == leader1 + 1)
+    if (leader2 == (leader1 + 1) % NSERVERS)
       config_->Reconnect((leader1 + 2) % NSERVERS);
     else
       config_->Reconnect((leader1 + 1) % NSERVERS);

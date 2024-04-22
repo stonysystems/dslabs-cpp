@@ -109,9 +109,15 @@ int RandomGenerator::nu_rand(int a, int x, int y) {
 }
 
 unsigned long long RandomGenerator::rdtsc() {
+#if defined(__aarch64__) || defined(_M_ARM64)
+    unsigned long long time_counter;
+    __asm__ __volatile__("mrs %0, CNTVCT_EL0": "=r" (time_counter));
+    return time_counter;
+#elif __x86_64__
     unsigned int lo, hi;
     __asm__ __volatile__("rdtsc" : "=a" (lo), "=d" (hi));
     return ((unsigned long long)hi << 32) | lo;
+#endif
 }
 
 unsigned int RandomGenerator::weighted_select(const std::vector<double> &weight_vector) {
