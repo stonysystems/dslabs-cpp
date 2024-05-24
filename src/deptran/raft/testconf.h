@@ -58,8 +58,10 @@ class RaftTestConfig {
  public:
   RaftTestConfig(map<siteid_t, RaftFrame*>& frames);
 
-  void Restart(int svr) {
-    return frames[svr]->Restart();
+   void Restart(int svr) {
+    RaftTestConfig::committed_cmds[svr].clear();
+    RaftTestConfig::committed_cmds[svr].push_back(-1);
+    frames[svr]->Restart();
   }
 
   KvServer* GetKvServer(int svr) {
