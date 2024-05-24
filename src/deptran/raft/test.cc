@@ -1415,6 +1415,8 @@ int RaftLabTest::testMorePersistence1(void) {
     config_->Reconnect((leader1 + 4) % NSERVERS);
     config_->Restart((leader1 + 4) % NSERVERS);
   }
+  int leader1 = config_->OneLeader();
+  AssertOneLeader(leader1);
   DoAgreeAndAssertIndex(1360, NSERVERS, index_++);
   Passed2();
 }
@@ -1449,6 +1451,8 @@ int RaftLabTest::testMorePersistence2(void) {
     config_->Reconnect((leader1 + 4) % NSERVERS);
     config_->Restart((leader1 + 4) % NSERVERS);
   }
+  int leader1 = config_->OneLeader();
+  AssertOneLeader(leader1);
   DoAgreeAndAssertIndex(1460, NSERVERS, index_++);
   Passed2();
 }
