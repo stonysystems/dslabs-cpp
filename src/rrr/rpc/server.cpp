@@ -162,9 +162,9 @@ bool ServerConnection::handle_read() {
         return false;
     }
 
-    //list<Request*> complete_requests;
-    //list<RefCell<RefMut<Request>>> complete_requests;
-    list<RefMut<Request>> complete_requests;
+    // Accumulate complete requests using heap-allocated Request* so we can
+    // safely pass ownership to handlers and keep capture copyable for coroutines.
+    list<Request*> complete_requests;
 
     for (;;) {
         i32 packet_size;
@@ -172,19 +172,16 @@ bool ServerConnection::handle_read() {
         if (n_peek == sizeof(i32) && in_.content_size() >= packet_size + sizeof(i32)) {
             // consume the packet size
             verify(in_.read(&packet_size, sizeof(i32)) == sizeof(i32));
-            //Request* req = new Request;
-            RefCell<Request> req;
-            req.reset(new Request);
-            
-            RefMut<Request> mreq = borrow_mut(req);
+            Request* req = new Request;
 
-            verify(mreq->m.read_from_marshal(in_, packet_size) == (size_t) packet_size);
+            // Directly fill the Request.
+            verify(req->m.read_from_marshal(in_, packet_size) == (size_t) packet_size);
 
             v64 v_xid;
-            mreq->m >> v_xid;
-            mreq->xid = v_xid.get();
+            req->m >> v_xid;
+            req->xid = v_xid.get();
 
-            complete_requests.push_back(std::move(mreq));
+            complete_requests.push_back(req);
 
         } else {
             // packet not complete or there's no more packet to process
@@ -196,15 +193,20 @@ bool ServerConnection::handle_read() {
     stat_server_batching(complete_requests.size());
 #endif // RPC_STATISTICS
 
-    for (auto& req: complete_requests) {
+    // Process and dispatch requests; pass raw pointer to handlers.
+    while (!complete_requests.empty()) {
+        Request* req = complete_requests.front();
+        complete_requests.pop_front();
 
         
        
         if (req->m.content_size() < sizeof(i32)) {
             // rpc id not provided
-            begin_reply(req, EINVAL);
+            RefCell<Request> rreq; rreq.reset(req);
+            auto mreq = borrow_mut(rreq);
+            begin_reply(mreq, EINVAL);
             end_reply();
-            //delete req;
+            delete req;
             continue;
         }
 
@@ -221,8 +223,8 @@ bool ServerConnection::handle_read() {
             // the handler should delete req, and release server_connection refcopy.
             auto x = dynamic_pointer_cast<ServerConnection>(shared_from_this());
             auto y = it->second;
-						//Log_info("CreateRunning: %x", rpc_id);
-            Coroutine::CreateRun([y, &req, x, this, rpc_id] () { // capture creq by reference
+            // Capture req by value (raw pointer) to keep the lambda copyable.
+            Coroutine::CreateRun([y, req, x, this, rpc_id] () {
 //              verify(x);
               verify(x->connected());
 
@@ -234,7 +236,8 @@ bool ServerConnection::handle_read() {
                   //ev->Wait(1); // timeout after 100 ms
 	      }*/
 //#endif
-              y(req.raw_, x.get());
+              // Transfer ownership of the Request to the handler; handler deletes it.
+              y(req, x.get());
 							/*if (req != nullptr && !req->m.valid_id) {
 								if (count % 100000 == 0) {
 									if (req->m.found_dep) {
@@ -275,9 +278,13 @@ bool ServerConnection::handle_read() {
                 Log_error("rrr::ServerConnection: no handler for rpc_id=0x%08x", rpc_id);
             }
 
-            begin_reply(req, ENOENT);
-            end_reply();
-            //delete req;
+            {
+                RefCell<Request> rreq; rreq.reset(req);
+                auto mreq = borrow_mut(rreq);
+                begin_reply(mreq, ENOENT);
+                end_reply();
+                delete req;
+            }
         }
     }
 
