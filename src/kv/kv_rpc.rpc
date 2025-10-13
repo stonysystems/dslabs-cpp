@@ -1,0 +1,7 @@
+namespace janus;
+
+abstract service Kv {
+  defer Put(uint64_t op_id, string key, string value | uint32_t ret);
+  defer Append(uint64_t op_id, string key, string value | uint32_t ret);
+  defer Get(uint64_t op_id, string key | uint32_t ret, string value);
+}

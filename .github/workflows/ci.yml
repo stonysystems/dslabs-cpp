@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [ mako-dev ]
+  workflow_dispatch:
+
+# Cancel superseded runs when you push new commits to the same PR/branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: self-hosted 
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Release]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive  # if you use submodules (e.g., third-party libs)
+
+      - name: Environments 
+        run: |
+          pwd
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          echo "RUNNER_TEMP=$RUNNER_TEMP"
+          echo "RUNNER_TOOL_CACHE=$RUNNER_TOOL_CACHE"
+
+      - name: Compile
+        run: ./ci/ci.sh compile 
+
+      - name: Run tests - simple transaction
+        run: ./ci/ci.sh simpleTransaction
+
+      - name: Run tests - simple replication
+        run: ./ci/ci.sh simplePaxos 
+
+      - name: Run tests - simple 2 shards without replication 
+        run: ./ci/ci.sh shardNoReplication
+      
+      - name: Run tests - simple 1 shard with replication - dbtest
+        run: ./ci/ci.sh shard1Replication
+
+      - name: Run tests - simple 2 shard with replication - dbtest
+        run: ./ci/ci.sh shard2Replication
+
+      - name: Run tests - simple 1 shard with replication - simpleTransactionRep
+        run: ./ci/ci.sh shard1ReplicationSimple
+      
+      - name: Run tests - simple 2 shard with replication - simpleTransactionRep
+        run: ./ci/ci.sh shard2ReplicationSimple
+
+      - name: Run tests - RocksDB persistence and partitioned queues
+        run: ./ci/ci.sh rocksdbTests
+
+      - name: Cleanup
+        if: always()
+        run: ./ci/clean.sh

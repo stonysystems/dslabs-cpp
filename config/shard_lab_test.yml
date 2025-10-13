@@ -1,0 +1,48 @@
+# Mode: just Raft replication
+
+mode:
+  cc: none # concurrency control
+  ab: fpga_raft # atomic broadcast
+  read_only: occ
+  batch: false
+  retry: 20
+  ongoing: 1 # per client
+
+# Sites: 1 server, 5 replicas
+
+site:
+  server:
+    - ["s101:18101", "s102:18102", "s103:18103", "s104:18104", "s105:18105"]
+    - ["s201:18201", "s202:18202", "s203:18203", "s204:18204", "s205:18205"]
+    - ["s301:18301", "s302:18302", "s303:18303", "s304:18304", "s305:18305"]
+    - ["s401:18401", "s402:18402", "s403:18403", "s404:18404", "s405:18405"]
+
+process:
+  s101: localhost
+  s102: localhost
+  s103: localhost
+  s104: localhost
+  s105: localhost
+  s201: localhost
+  s202: localhost
+  s203: localhost
+  s204: localhost
+  s205: localhost
+  s301: localhost
+  s302: localhost
+  s303: localhost
+  s304: localhost
+  s305: localhost
+  s401: localhost
+  s402: localhost
+  s403: localhost
+  s404: localhost
+  s405: localhost
+
+host:
+  localhost: 127.0.0.1
+
+lab:
+  raft: false
+  kv: false  
+  shard: true
