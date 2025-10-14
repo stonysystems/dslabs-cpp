@@ -546,10 +546,21 @@ add_custom_command(
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+# Add raft RPC generation (for Lab 1)
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran/raft/raft_rpc.h
+         ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran/raft/raft_rpc.py
+  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/bin/rpcgen --cpp --python src/deptran/raft/raft_rpc.rpc
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran/raft/raft_rpc.rpc
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 # Create a target for the generated RPC files
-add_custom_target(rcc_rpc_gen DEPENDS 
+add_custom_target(rpc_gen DEPENDS
   ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran/rcc_rpc.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran/rcc_rpc.py
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran/raft/raft_rpc.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran/raft/raft_rpc.py
 )
 
 # Custom command for lz4 library - build only if missing
@@ -626,8 +637,8 @@ add_library(txlog SHARED
     ${KV_SHARD_SRC}
 )
 
-# Add dependency to ensure rcc_rpc.h is generated before txlog is built
-add_dependencies(txlog rcc_rpc_gen)
+# Add dependency to ensure rpc files are generated before txlog is built
+add_dependencies(txlog rpc_gen)
 
 target_include_directories(txlog PRIVATE
     src
@@ -1088,7 +1099,7 @@ if(BUILD_RAFT_LAB_TESTS)
         ${LIBEVENT_LDFLAGS}
     )
 
-    add_dependencies(labtest txlog rcc_rpc_gen)
+    add_dependencies(labtest txlog rpc_gen)
 
     message(STATUS "  labtest executable will be built from src/deptran/s_main.cc")
     message(STATUS "  Run with: ./build/labtest -f config/raft_lab_test.yml")
