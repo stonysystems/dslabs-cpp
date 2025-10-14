@@ -555,12 +555,45 @@ add_custom_command(
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+# Add KV RPC generation (for Lab 2)
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/kv_rpc.h
+         ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/kv_rpc.py
+  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/bin/rpcgen --cpp --python src/kv/kv_rpc.rpc
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/kv_rpc.rpc
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+# Add ShardKV RPC generation (for Lab 3)
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/src/shardkv/shardkv_rpc.h
+         ${CMAKE_CURRENT_SOURCE_DIR}/src/shardkv/shardkv_rpc.py
+  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/bin/rpcgen --cpp --python src/shardkv/shardkv_rpc.rpc
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/shardkv/shardkv_rpc.rpc
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+# Add ShardMaster RPC generation (for Lab 3)
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/src/shardmaster/shardmaster_rpc.h
+         ${CMAKE_CURRENT_SOURCE_DIR}/src/shardmaster/shardmaster_rpc.py
+  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/bin/rpcgen --cpp --python src/shardmaster/shardmaster_rpc.rpc
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/shardmaster/shardmaster_rpc.rpc
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 # Create a target for the generated RPC files
 add_custom_target(rpc_gen DEPENDS
   ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran/rcc_rpc.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran/rcc_rpc.py
   ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran/raft/raft_rpc.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran/raft/raft_rpc.py
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/kv_rpc.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/kv_rpc.py
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/shardkv/shardkv_rpc.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/shardkv/shardkv_rpc.py
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/shardmaster/shardmaster_rpc.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/shardmaster/shardmaster_rpc.py
 )
 
 # Custom command for lz4 library - build only if missing
