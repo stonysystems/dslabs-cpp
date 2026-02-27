@@ -1,0 +1,80 @@
+
+config={
+    # each line is one shard
+    # Using 45xxx+ ports to avoid conflicts with other users' processes on the shared server
+    # (17xxx-26xxx previously conflicted with other users' long-running processes)
+    "base_0": [(101, 45001),(201, 45101),(301, 45201),(401, 45301)],
+    "base_1": [(101, 46001),(201, 46101),(301, 46201),(401, 46301)],
+    "base_2": [(101, 47001),(201, 47101),(301, 47201),(401, 47301)],
+    "base_3": [(101, 48001),(201, 48101),(301, 48201),(401, 48301)],
+    "base_4": [(101, 49001),(201, 49101),(301, 49201),(401, 49301)],
+    "base_5": [(101, 50001),(201, 50101),(301, 50201),(401, 50301)],
+    "base_6": [(101, 51001),(201, 51101),(301, 51201),(401, 51301)],
+    "base_7": [(101, 52001),(201, 52101),(301, 52201),(401, 52301)],
+    "base_8": [(101, 53001),(201, 53101),(301, 53201),(401, 53301)],
+    "base_9": [(101, 54001),(201, 54101),(301, 54201),(401, 54301)],
+}
+nshards=10
+with open('../../bash/n_partitions', 'r') as file:
+    file_contents = file.read()
+    nshards = int(file_contents)
+    print("using partitions: ", nshards)
+map_ip=[{} for _ in range(nshards)]
+
+def loader():
+    for shardIdx in range(nshards):
+        file="../../bash/shard{shardIdx}.config.pub".format(shardIdx=shardIdx)
+        for line in open(file, "r").readlines():
+            items=[e for e in line.split(" ") if e]
+            map_ip[shardIdx][items[0]]=items[1].strip()
+
+def generate_shard(shardIdx):
+    template="template_paxos1_shardidx{sIdx}.yml".format(sIdx=shardIdx)
+    base = config["base_"+str(shardIdx)]
+
+    for w_id in range(1, 32+1):
+        file_name="paxos{w_id}_shardidx{sIdx}.yml".format(w_id=w_id,sIdx=shardIdx)
+        content = ""
+        for line in open(template, "r").readlines():
+            skip=False
+            for p in ["localhost","p1","p2","learner"]:
+                if p in line:
+                    skip=True
+            
+            if not skip:
+                content += line
+            if "server:" in line:
+                servers = ""
+                for i in range(w_id): 
+                    servers += '    - ["s{n0}:{p0}", "s{n1}:{p1}", "s{n2}:{p2}", "s{n3}:{p3}"]\n'.format(
+                        n0=base[0][0]+i, p0=base[0][1]+i,
+                        n1=base[1][0]+i, p1=base[1][1]+i,
+                        n2=base[2][0]+i, p2=base[2][1]+i,
+                        n3=base[3][0]+i, p3=base[3][1]+i,
+                    )
+                content += servers    
+            
+            if "process:" in line:
+                processes = ""
+                for i in range(w_id):
+                    processes += "  s{n0}: localhost\n".format(n0=base[0][0]+i)
+                    processes += "  s{n1}: p1\n".format(n1=base[1][0]+i)
+                    processes += "  s{n2}: p2\n".format(n2=base[2][0]+i)
+                    processes += "  s{n3}: learner\n".format(n3=base[3][0]+i)
+                content += processes
+
+            for p in ["localhost","p1","p2","learner"]:
+                if p in line:
+                    line = line.replace("127.0.0.1", map_ip[shardIdx][p])
+                    content += line
+
+        f = open(file_name, "w")
+        f.write(content)
+        f.close()
+
+
+if __name__ == "__main__":
+    loader()
+
+    for shardIdx in range(nshards):
+        generate_shard(shardIdx)
