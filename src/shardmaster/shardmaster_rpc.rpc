@@ -1,0 +1,9 @@
+namespace janus;
+
+abstract service ShardMaster {
+  // Join, Leave, Move, Query
+  defer Join(map<uint32_t, vector<uint32_t>> gid_server_map | uint32_t ret);
+  defer Leave(vector<uint32_t> gids | uint32_t ret);
+  defer Move(int32_t shard, uint32_t gid| uint32_t ret);
+  defer Query(int32_t config_no | uint32_t ret, ShardConfig config);
+}

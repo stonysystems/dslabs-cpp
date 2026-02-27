@@ -1,0 +1,77 @@
+#pragma once
+#include <rusty/arc.hpp>
+
+#include "__dep__.h"
+#include "marshal-value.h"
+#include "command.h"
+#include "procedure.h"
+#include "command_marshaler.h"
+#include "rcc_rpc.h"
+#include "service.h"
+#include "sharding.h"
+#include "tx.h"
+#include "workload.h"
+#include "config.h"
+
+namespace janus {
+
+class Communicator;
+class Frame;
+class KvServer;
+class ShardKvServer;
+class ShardMasterServiceImpl;
+class KvServiceImpl;
+class ShardKvServiceImpl;
+class ServerWorker {
+ public:
+  rusty::Arc<rrr::PollThreadWorker> svr_poll_thread_worker_;
+  base::ThreadPool *svr_thread_pool_ = nullptr;
+  vector<rrr::Service*> services_ = {};
+  rrr::Server *rpc_server_ = nullptr;
+  base::ThreadPool *thread_pool_g = nullptr;
+
+  rusty::Arc<rrr::PollThreadWorker> svr_hb_poll_thread_worker_g;
+  ServerControlServiceImpl *scsi_ = nullptr;
+  rrr::Server *hb_rpc_server_ = nullptr;
+  base::ThreadPool *hb_thread_pool_g = nullptr;
+
+  Frame* tx_frame_ = nullptr;
+  Frame* rep_frame_ = nullptr;
+  Config::SiteInfo *site_info_ = nullptr;
+  Sharding *sharding_ = nullptr;
+  TxLogServer *tx_sched_ = nullptr;
+  TxLogServer *rep_sched_ = nullptr;
+  shared_ptr<TxLogServer> rep_log_svr_{};
+  shared_ptr<KvServer> kv_svr_{};
+  shared_ptr<ShardKvServer> shardkv_svr_{};
+  shared_ptr<ShardMasterServiceImpl> sm_svr_{};
+  shared_ptr<KvServiceImpl> kv_service_{};  // Hold service to prevent premature deletion
+  shared_ptr<ShardKvServiceImpl> shardkv_service_{};  // Hold service to prevent premature deletion
+  shared_ptr<TxnRegistry> tx_reg_{nullptr};
+
+  Communicator *tx_commo_ = nullptr;
+  Communicator *rep_commo_ = nullptr;
+
+  bool launched_{false};
+
+  ~ServerWorker(); // Destructor to cleanup resources
+
+  int DbChecksum();
+  void SetupHeartbeat();
+  void PopTable();
+  void SetupBase();
+  void SetupService();
+  void SetupCommo();
+  void RegisterWorkload();
+  void ShutDown();
+  // NOTE: Pause/Resume/Slow not supported by PollThreadWorker (only old PollMgr)
+  // void Pause();
+  // void Resume();
+  // void Slow(uint32_t sleep_usec=100000);
+
+  static const uint32_t CtrlPortDelta = 10000;
+  void WaitForShutdown();
+};
+
+
+} // namespace janus

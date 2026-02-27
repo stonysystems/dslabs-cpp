@@ -1,0 +1,41 @@
+[package]
+name = "rust_raft"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+# Generate both static and dynamic libraries
+# staticlib for linking with C++
+# cdylib for potential dynamic loading
+crate-type = ["staticlib", "cdylib"]
+path = "lib.rs"
+
+[dependencies]
+# For C type compatibility
+libc = "0.2"
+
+# For global state management (registry of RaftServer instances)
+lazy_static = "1.4"
+
+# For logging
+log = "0.4"
+env_logger = "0.10"
+
+# For random number generation
+rand = "0.8"
+
+# Optional: For better error handling across FFI
+# anyhow = "1.0"
+
+# Optional: For serialization if needed
+# serde = { version = "1.0", features = ["derive"] }
+
+[build-dependencies]
+# Uncomment if using bindgen to generate Rust bindings from C++ headers
+# bindgen = "0.69"
+
+[profile.release]
+# Optimize for size and performance
+opt-level = 3
+lto = true
+codegen-units = 1
