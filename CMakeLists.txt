@@ -554,11 +554,36 @@ add_custom_command(
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+# Generate KV/Sharding RPC headers used by raft lab tests.
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/kv_rpc.h
+  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/bin/rpcgen --cpp src/kv/kv_rpc.rpc
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/kv_rpc.rpc
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/src/shardkv/shardkv_rpc.h
+  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/bin/rpcgen --cpp src/shardkv/shardkv_rpc.rpc
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/shardkv/shardkv_rpc.rpc
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/src/shardmaster/shardmaster_rpc.h
+  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/bin/rpcgen --cpp src/shardmaster/shardmaster_rpc.rpc
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/shardmaster/shardmaster_rpc.rpc
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 # Create a target for the generated RPC files
 add_custom_target(rcc_rpc_gen DEPENDS
   ${CMAKE_CURRENT_SOURCE_DIR}/src/protocol/rcc_rpc.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/protocol/rcc_rpc.py
   ${CMAKE_CURRENT_SOURCE_DIR}/src/protocol/raft/raft_rpc.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/kv_rpc.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/shardkv/shardkv_rpc.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/shardmaster/shardmaster_rpc.h
 )
 
 # Custom command for lz4 library - build only if missing
