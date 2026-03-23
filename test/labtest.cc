@@ -1201,7 +1201,7 @@ int RaftLabTest::testFigure8(void) {
     success = true;
     // Reconnect all servers
     config_->Reconnect((leader1 + 3) % NSERVERS);
-    if (leader2 == leader1 + 1)
+    if (leader2 == (leader1 + 1) % NSERVERS)
       config_->Reconnect((leader1 + 1) % NSERVERS);
     else
       config_->Reconnect((leader1 + 2) % NSERVERS);
